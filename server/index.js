@@ -17,6 +17,7 @@ mongoose.connect(conStr)
     .then(()=>{console.log("Database Connected..")})
     .catch((error)=>{console.log("Database Connection Error.."+error)});
 
+    // http://localhost:3002/getUsers
     app.get("/getUsers",async(req,res)=>{
     try{
         const users=await UserModel.find({});
@@ -26,3 +27,4 @@ mongoose.connect(conStr)
         res.send("Read Error.."+error)
     }
 });
+
