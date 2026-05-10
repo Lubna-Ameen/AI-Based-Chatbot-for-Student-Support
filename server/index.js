@@ -3,6 +3,7 @@ import cors from "cors";
 import mongoose from "mongoose";
 import UserModel from "./models/Users.js";
 import bcrypt from 'bcrypt';
+import jwt from "jsonwebtoken";
 
 const app=express(); //cors() → يسمح للفرونت والباك يتواصلوا
 express.json()       // يخلي السيرفر يقرأ بيانات JSON المرسلة من المستخدم
@@ -105,6 +106,36 @@ app.post("/register", async (req, res) => {
             error: error.message
         });
     }
-});
- 
 
+    // log(req.body);
+   app.post("/login", async (req, res) => {
+    const {name, email, password} = req.body;
+    let user  = await UserModel.findOne({email: email});
+    // if the user doesn't exist, create a new one
+    if (!user) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        user = new UserModel(
+            {name, 
+             email,
+             password: hashedPassword,
+            role: "student"
+            }
+        );
+        await user.save();
+    }
+    // compare the provided password with the stored hashed password
+    const isPasswordValid = await bcrypt.compare(password,
+         user.password);  
+    if (!isPasswordValid) {
+        return res.send({
+            success: false,
+            message: "Invalid Password"
+        });
+    }
+    res.send({
+        success: true,
+        message: "Login Successful",
+
+    });
+});
+        
