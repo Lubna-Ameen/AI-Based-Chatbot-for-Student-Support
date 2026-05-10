@@ -16,3 +16,13 @@ const conStr="mongodb+srv:Admin:18434734@cluster0.kn4vkqj.mongodb.net/"
 mongoose.connect(conStr)
     .then(()=>{console.log("Database Connected..")})
     .catch((error)=>{console.log("Database Connection Error.."+error)});
+
+    app.get("/getUsers",async(req,res)=>{
+    try{
+        const users=await UserModel.find({});
+        res.send(users);
+    }
+    catch(error){
+        res.send("Read Error.."+error)
+    }
+});
