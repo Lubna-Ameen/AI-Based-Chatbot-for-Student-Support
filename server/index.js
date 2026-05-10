@@ -28,3 +28,33 @@ mongoose.connect(conStr)
     }
 });
 
+const mongoose = require("mongoose"); //Import Mongoose
+ const UserSchema = new mongoose.Schema({  //Creates structure for user data
+    name: {
+        type: String,
+        required: true
+    },
+    email: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    password: {
+        type: String,
+        required: true
+    },
+    role: {
+        type: String,
+        enum: ["student", "admin"],
+        default: "student"
+    },
+    studentId: {
+        type: String,
+        default: null
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
