@@ -136,6 +136,6 @@ app.post("/register", async (req, res) => {
         success: true,
         message: "Login Successful",
 
-    });
-});
-        
+    })
+});                                                                                                                                                                         
+})

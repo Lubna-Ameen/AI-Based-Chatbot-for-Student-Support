@@ -1,0 +1,82 @@
+body {
+  background-color: #dcefdc;
+  font-family: Arial, sans-serif;
+}
+
+/* الكرت */
+.container {
+  width: 420px;
+  margin: 40px auto;
+  background-color: #eef8ee;
+  padding: 30px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+/* الصورة */
+.top-image {
+  text-align: left;
+}
+ 
+.top-image img {
+  width: 90px;
+  height: 90px;
+  object-fit: contain;
+}
+
+/* inputs */
+input {
+  width: 100%;
+  padding: 12px;
+  display: block;      /* مهم جدًا */
+  margin-bottom: 30px; /* 👈 هذا اللي يعطي مسافة بينهم */
+  border: none;
+  border-radius: 6px;
+  background-color: #47e38e;
+  font-size: 14px;
+}
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* options (remember + forgot) */
+.options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  margin-top: 5px;
+  margin-bottom: 15px;
+}
+
+/* checkbox */
+.remember {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* زر login أصغر */
+.login-btn {
+  width: 100%;
+  padding: 10px;   /* 👈 أصغر */
+  border: none;
+  border-radius: 20px; /* 👈 أخف */
+  background-color: #2f6b3d;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* signup */
+.signup {
+  margin-top: 15px;
+  font-size: 14px;
+}
+
+a {
+  color: #4d4dff;
+  text-decoration: none;
+}
