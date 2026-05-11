@@ -57,8 +57,7 @@ const mongoose = require("mongoose"); //Import Mongoose
         default: Date.now
     }
 });
-const UserModel = mongoose.model("users", UserSchema);
-module.exports = UserModel;
+
 
 //Register API
 app.post("/register", async (req, res) => {
