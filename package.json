@@ -1,0 +1,14 @@
+{
+  "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
+    "axios": "^1.16.0",
+    "bootstrap": "^5.3.8",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "mongoose": "^9.6.2",
+    "react-hook-form": "^7.75.0",
+    "react-router-dom": "^7.15.0",
+    "reactstrap": "^9.2.3",
+    "yup": "^1.7.1"
+  }
+}
