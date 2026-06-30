@@ -1,34 +1,70 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import BrandLogo from "./BrandLogo";
 
-const Navbar = () => {
+const navItems = [
+  { label: "Home", path: "/" },
+  { label: "About Us", path: "/about" },
+  { label: "Contact Us", path: "/contact" },
+  { label: "Login", path: "/login" },
+  { label: "Register", path: "/register" },
+  { label: "Logout", path: "/logout" },
+];
+
+const dashboardNavItems = [
+  { label: "Home", path: "/" },
+  { label: "About Us", path: "/about" },
+  { label: "Contact Us", path: "/contact" },
+  { label: "Logout", path: "/logout" },
+];
+
+const Navbar = ({ showAdminPortal = false, variant = "default" }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const items = variant === "dashboard" ? dashboardNavItems : navItems;
+
+  const isActive = (path) => {
+    if (path === "/") {
+      return location.pathname === "/" || location.pathname === "/welcome" || location.pathname === "/home";
+    }
+
+    return location.pathname === path;
+  };
+
   return (
-    <div style={styles.nav}>
+    <nav className="site-navbar" aria-label="Main navigation">
+      <button
+        type="button"
+        className="site-navbar-brand"
+        onClick={() => navigate("/")}
+        aria-label="Go to homepage"
+      >
+        <BrandLogo variant="full" size="nav" />
+      </button>
 
-      <Link to="/welcome" style={styles.link}>Welcome</Link>
-
-      <Link to="/welcome" style={styles.link}>Home</Link>
-
-      <Link to="/login" style={styles.link}>Login</Link>
-
-      <Link to="/register" style={styles.link}>Register</Link>
-
-    </div>
+      <div className="site-navbar-links">
+        {items.map((item) => (
+          <button
+            key={item.path}
+            type="button"
+            className={isActive(item.path) ? "active" : ""}
+            onClick={() => navigate(item.path)}
+            aria-current={isActive(item.path) ? "page" : undefined}
+          >
+            {item.label}
+          </button>
+        ))}
+        {showAdminPortal && (
+          <button
+            type="button"
+            className="admin-portal-nav-button"
+            onClick={() => navigate("/admin/login")}
+          >
+            Admin Portal
+          </button>
+        )}
+      </div>
+    </nav>
   );
-};
-
-const styles = {
-  nav: {
-    display: "flex",
-    gap: "20px",
-    padding: "15px",
-    backgroundColor: "#2f6b3d",
-  },
-  link: {
-    color: "white",
-    textDecoration: "none",
-    fontSize: "16px",
-  },
 };
 
 export default Navbar;

@@ -1,4 +1,11 @@
 {
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "npm --prefix client test -- --run",
+    "test:watch": "npm --prefix client run test:watch"
+  },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "axios": "^1.16.0",

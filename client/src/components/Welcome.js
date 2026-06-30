@@ -1,5 +1,7 @@
-import { FaHome, FaInfoCircle, FaPhone } from "react-icons/fa";
+import { FaCheckCircle } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import Navbar from "./Navbar";
+import BrandLogo from "./BrandLogo";
 import "./Style.css";
 
 const Welcome = () => {
@@ -7,63 +9,57 @@ const Welcome = () => {
 
   return (
     <main className="welcome-page">
-      <section className="welcome-card">
-
-        {/* Title */}
-        <h1 className="welcome-title">WELCOME TO AI CHATBOT</h1>
+      <section className="welcome-hero">
+        <Navbar showAdminPortal />
 
         <div className="welcome-content">
-
-          {/* LEFT SIDE */}
           <div className="welcome-left">
-
-            <img
-              src="https://cdn.dribbble.com/users/1162077/screenshots/3848914/programmer.gif"
-              alt="person working at a computer"
-              className="welcome-person"
-            />
-
+            <span className="welcome-kicker">AI-powered campus assistance</span>
+            <h1 className="welcome-title">
+              Smarter student support, available anytime.
+            </h1>
             <p className="welcome-copy">
-              Ask questions, get answers, manage your time, and improve your
-              study experience with our AI chatbot assistant.
+              Help students get fast answers, plan study time, and navigate
+              academic services through a polished AI assistant built for modern
+              learning teams.
             </p>
 
-            <button
-              type="button"
-              className="welcome-start"
-              onClick={() => navigate("/login")}
-            >
-              Get Started
-            </button>
-          </div>
-
-          {/* RIGHT SIDE */}
-          <div className="welcome-right">
-
-            <div className="welcome-links">
-
-              <button type="button" onClick={() => navigate("/home")}>
-                Home <FaHome />
+            <div className="welcome-actions">
+              <button
+                type="button"
+                className="welcome-start primary"
+                onClick={() => navigate("/login")}
+              >
+                Get Started
               </button>
-
-              <button type="button" onClick={() => navigate("/about")}>
-                About Us <FaInfoCircle />
-              </button>
-
-              <button type="button" onClick={() => navigate("/contact")}>
-                Contact Us <FaPhone />
-              </button>
-
             </div>
 
-            <img
-              src="https://cdn-icons-png.flaticon.com/512/4712/4712027.png"
-              alt="robot"
-              className="welcome-robot"
-            />
-
+            <div className="welcome-trust">
+              <span><FaCheckCircle /> Instant guidance</span>
+              <span><FaCheckCircle /> Study support</span>
+              <span><FaCheckCircle /> Clean workflow</span>
+            </div>
           </div>
 
+          <div className="welcome-right">
+            <div className="welcome-product-showcase">
+              <div className="welcome-product-header">
+                <span className="welcome-status-dot"></span>
+                AI Assistant Online
+              </div>
+              <div className="welcome-chat-row ai">
+                How can I help with your student services today?
+              </div>
+              <div className="welcome-chat-row user">
+                I need help planning my coursework.
+              </div>
+              <div className="welcome-insight-card">
+                <span>Recommended next step</span>
+                <strong>Build a weekly study plan in under 2 minutes.</strong>
+              </div>
+              <BrandLogo className="welcome-hero-logo" size="medium" />
+            </div>
+          </div>
         </div>
       </section>
     </main>

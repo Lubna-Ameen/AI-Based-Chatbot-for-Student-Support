@@ -4,6 +4,8 @@ import { useForm } from 'react-hook-form';
 
 import axios from 'axios';
 
+import Navbar from './Navbar';
+import BrandLogo from './BrandLogo';
 import './Style.css';
 
 const Login = () => {
@@ -36,7 +38,11 @@ const Login = () => {
 
       if (response.data.success) {
 
-        navigate('/');
+        if (response.data.user) {
+          localStorage.setItem('studentUser', JSON.stringify(response.data.user));
+        }
+
+        navigate('/search');
 
         return;
 
@@ -73,61 +79,18 @@ const Login = () => {
   return (
     <div className="login-page">
 
-      {/* Navbar */}
-      <nav className="navbar">
-        <div className="nav-brand">
-          <h2>AI Learn</h2>
-        </div>
-        <ul className="nav-links">
-          <li>
-            <Link to="/">Home</Link>
-          </li>
-          <li>
-            <Link to="/about">
-
-              About Us
-            </Link>
-          </li>
-          <li>
-            <Link to="/contact">
-
-              Contact Us
-            </Link>
-          </li>
-        </ul>
-      </nav>
+      <Navbar />
 
       {/* Login Section */}
       <div className="login-container">
         <div className="container">
 
-          {/* Left Side */}
-          <div className="top-section">
-            <img
-
-              src="https://cdn.dribbble.com/users/1162077/screenshots/3848914/programmer.gif"
-
-              alt="AI learning"
-
-              className="left-image"
-
-            />
-            <img
-
-              src="https://cdn-icons-png.flaticon.com/512/4712/4712027.png"
-
-              alt="robot assistant"
-
-              className="robot-image"
-
-            />
-          </div>
-
-          {/* Right Side */}
           <form
 
             onSubmit={handleSubmit(onSubmit)}
           >
+            <BrandLogo className="auth-form-logo" size="small" />
+
             <h1>
 
               Welcome Back
@@ -216,7 +179,7 @@ const Login = () => {
 
                 />
 
-                Remember me
+                Rememberme
               </label>
               <button
 
@@ -259,7 +222,7 @@ const Login = () => {
 
                 ? 'Logging in...'
 
-                : 'Secure Login'}
+                : 'Login'}
             </button>
 
             {/* Signup */}
@@ -295,7 +258,7 @@ const Login = () => {
 
           Need help? Just chat with our
 
-          friendly AI assistant anytime 🤖💬
+          friendly AI assistant anytime.
 
           It can answer your questions,
 

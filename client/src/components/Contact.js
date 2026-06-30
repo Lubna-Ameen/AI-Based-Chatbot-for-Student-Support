@@ -1,14 +1,17 @@
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import Navbar from './Navbar';
+import BrandLogo from './BrandLogo';
 import './Style.css';
 
 const Contact = () => {
   const navigate = useNavigate();
+  const currentYear = new Date().getFullYear();
 
   const [messages, setMessages] = useState([
     {
       id: 1,
-      text: "Hello! 👋 Welcome to AI Assistant. How can I help you today?",
+      text: "Hello! Welcome to AI Assistant. How can I help you today?",
       sender: 'ai',
       timestamp: new Date()
     }
@@ -37,7 +40,7 @@ const Contact = () => {
           userMessage.includes("hello") ||
           userMessage.includes("hi")
         ) {
-          reply = "Hello 👋 How can I help you today?";
+          reply = "Hello How can I help you today?";
         }
 
         else if (
@@ -52,7 +55,7 @@ const Contact = () => {
           userMessage.includes("login")
         ) {
           reply =
-            "You can login using your registered email and password 🔐";
+            "You can login using your registered email and password on the Login page. If you forgot your password, you can reset it from the Forget Password page.";
         }
 
         else if (
@@ -60,19 +63,19 @@ const Contact = () => {
           userMessage.includes("signup")
         ) {
           reply =
-            "You can create a new account from the Register page ✨";
+            "You can create a new account from the Register page using your email and a secure password.";
         }
 
         else if (
           userMessage.includes("help")
         ) {
           reply =
-            "Sure 😊 I can help you with login, registration, and project information.";
+            "Sure I can help you with login, registration, and project information.";
         }
 
         else {
           reply =
-            "I'm here to help 😊 Please ask me anything about the project or support system.";
+            "I'm here to help Please ask me anything about the project or support system.";
         }
 
         const aiResponse = {
@@ -97,40 +100,7 @@ const Contact = () => {
   return (
     <div className="contact-page">
 
-      <nav className="navbar">
-        <div className="nav-brand">
-          <h2>AI Chatbot</h2>
-        </div>
-
-        <ul className="nav-links">
-          <li>
-            <button
-              onClick={() => navigate('/')}
-              className="link-button"
-            >
-              Home
-            </button>
-          </li>
-
-          <li>
-            <button
-              onClick={() => navigate('/about')}
-              className="link-button"
-            >
-              About Us
-            </button>
-          </li>
-
-          <li>
-            <button
-              onClick={() => navigate('/contact')}
-              className="link-button"
-            >
-              Contact Us
-            </button>
-          </li>
-        </ul>
-      </nav>
+      <Navbar />
 
       <section className="contact-hero">
         <div className="hero-content">
@@ -150,7 +120,7 @@ const Contact = () => {
               <div className="header-content">
 
                 <div className="ai-avatar">
-                  <span>🤖</span>
+                  <BrandLogo className="chat-logo" size="chat" />
                 </div>
 
                 <div className="header-text">
@@ -220,8 +190,9 @@ const Contact = () => {
 
       <footer className="footer">
         <div className="footer-content">
+          <BrandLogo className="footer-logo" size="chat" />
           <p>
-            &copy; 2024 AI-Based Chatbot for Student Support.
+            &copy; {currentYear} AI-Based Chatbot for Student Support.
             All rights reserved.
           </p>
 

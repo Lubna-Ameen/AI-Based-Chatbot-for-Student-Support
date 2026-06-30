@@ -1,12 +1,16 @@
 import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
+import { FaArrowLeft } from 'react-icons/fa';
 import axios from 'axios';
+import Navbar from './Navbar';
+import BrandLogo from './BrandLogo';
 import './Style.css';
 
 const Emailver = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const isPasswordReset = location.state?.isPasswordReset === true;
   const {
     register,
     handleSubmit,
@@ -24,13 +28,23 @@ const Emailver = () => {
 
   const onSubmit = async (data) => {
     try {
-      const response = await axios.post('http://localhost:3002/verify-otp', {
+      const response = await axios.post('http://127.0.0.1:3002/verify-otp', {
         email: data.email,
         otp: data.otp,
       });
 
       if (response.data.success) {
-        navigate('/login');
+        if (isPasswordReset) {
+          navigate('/change-password', {
+            state: {
+              email: data.email,
+              resetToken: response.data.resetToken,
+            },
+          });
+          return;
+        }
+
+        navigate('/search');
         return;
       }
 
@@ -52,63 +66,59 @@ const Emailver = () => {
     if (!email) {
       setError('email', {
         type: 'required',
-        message: 'Email is required to resend OTP',
+        message: 'Email or phone number is required to resend OTP',
       });
       return;
     }
 
     try {
-      const response = await axios.post('http://localhost:3002/send-otp', { email });
+      const endpoint = isPasswordReset
+        ? 'http://127.0.0.1:3002/send-reset-otp'
+        : 'http://127.0.0.1:3002/send-otp';
+      const response = await axios.post(endpoint, { email });
 
       if (!response.data.success) {
         setError('root', {
           type: 'server',
-          message: response.data.message || 'Unable to resend OTP',
+          message: response.data.message || 'Unable to resend OTP email',
         });
+        return;
       }
+
     } catch (error) {
       setError('root', {
         type: 'server',
-        message: error.response?.data?.message || 'Unable to resend OTP. Please try again.',
+        message: error.response?.data?.message || 'Unable to resend OTP email. Please try again.',
       });
     }
   };
 
   return (
-    <div className="container">
-      <div className="top-section">
-        <img
-          src="https://cdn.dribbble.com/users/1162077/screenshots/3848914/programmer.gif"
-          alt="person using laptop"
-          className="left-image"
-        />
+    <div className="emailver-page">
+      <Navbar />
 
-        <img
-          src="https://cdn-icons-png.flaticon.com/512/4712/4712027.png"
-          alt="robot assistant"
-          className="robot-image"
-        />
-      </div>
+      <div className="container emailver-container">
+        <form className="form-box" onSubmit={handleSubmit(onSubmit)}>
+          <BrandLogo className="verification-logo" size="medium" />
 
-      <form className="form-box" onSubmit={handleSubmit(onSubmit)}>
-        <h2>Email Verification</h2>
+          <h2>Email Verification</h2>
+          <p className="emailver-description">
+            Enter your email address and the OTP code sent to your inbox to
+            verify your account securely.
+          </p>
 
         <input
-          type="email"
-          placeholder="Enter your email"
+          type="text"
+          placeholder="Email address or phone number"
           {...register('email', {
-            required: 'Email is required',
-            pattern: {
-              value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-              message: 'Enter a valid email address',
-            },
+            required: 'Email or phone number is required',
           })}
         />
         {errors.email && <p className="error-message">{errors.email.message}</p>}
 
         <input
           type="text"
-          placeholder="Enter OTP code"
+          placeholder="OTP Code"
           {...register('otp', {
             required: 'OTP is required',
             minLength: {
@@ -135,19 +145,20 @@ const Emailver = () => {
 
         <p>
           Already verified? <button type="button" className="link-button" onClick={() => navigate('/login')}>
-            Go to login
+            Go to Login
           </button>
         </p>
-      </form>
+        </form>
 
-      <button
-        type="button"
-        className="back-icon"
-        onClick={() => navigate(-1)}
-        aria-label="Go back"
-      >
-        &larr;
-      </button>
+        <button
+          type="button"
+          className="back-icon"
+          onClick={() => navigate(-1)}
+          aria-label="Go back"
+        >
+          <FaArrowLeft />
+        </button>
+      </div>
     </div>
   );
 };

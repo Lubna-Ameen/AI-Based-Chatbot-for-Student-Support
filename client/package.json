@@ -21,7 +21,8 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -29,6 +30,11 @@
       "react-app",
       "react-app/jest"
     ]
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.1",
+    "jsdom": "^27.3.0",
+    "vitest": "^4.0.15"
   },
   "browserslist": {
     "production": [

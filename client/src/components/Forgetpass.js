@@ -1,75 +1,93 @@
-import { useState } from 'react';
-import './Style.css';
+import { useState } from "react";
+import { FaArrowLeft } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import Navbar from "./Navbar";
+import BrandLogo from "./BrandLogo";
+import "./Style.css";
 
 const Forgetpass = () => {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [message, setMessage] = useState('');
+  const navigate = useNavigate();
+  const [identifier, setIdentifier] = useState("");
+  const [message, setMessage] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
-  const handleSearchByUsername = (e) => {
+  const handleSendResetLink = async (e) => {
     e.preventDefault();
-    if (!username) {
-      setMessage('❌ Please enter a username');
+
+    const contact = identifier.trim();
+
+    if (!contact) {
+      setMessage("Please enter your email address or phone number.");
       return;
     }
-    setMessage(`✅ If "${username}" exists, reset instructions will be sent.`);
-    setUsername('');
-  };
 
-  const handleSearchByEmail = (e) => {
-    e.preventDefault();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setMessage('❌ Please enter a valid email');
-      return;
+    setIsSending(true);
+    setMessage("");
+
+    try {
+      const response = await axios.post("http://127.0.0.1:3002/send-reset-otp", {
+        identifier: contact,
+      });
+
+      if (response.data.success) {
+        navigate("/verify", {
+          state: {
+            email: contact,
+            isPasswordReset: true,
+          },
+        });
+        setIdentifier("");
+        return;
+      }
+
+      setMessage(response.data.message || "Unable to send OTP email. Please try again.");
+    } catch (error) {
+      setMessage(error.response?.data?.message || "Unable to send OTP email. Please try again.");
+    } finally {
+      setIsSending(false);
     }
-    setMessage(`✅ If "${email}" exists, reset instructions will be sent.`);
-    setEmail('');
   };
 
   return (
     <div className="forgetpass-page">
-      <div className="forget-container">
-        <h1>Forgot Password?</h1>
-        <p>
-          To reset your password, submit your username or your email address below.
-          If we can find you in the database, an email will be sent with instructions.
-        </p>
-
-        {/* Search by Username */}
-        <form onSubmit={handleSearchByUsername} className="forget-form">
-          <label>Username</label>
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Enter your username"
-            required
-          />
-          <button type="submit" className="forget-btn">Search</button>
-        </form>
-
-        {/* Search by Email */}
-        <form onSubmit={handleSearchByEmail} className="forget-form">
-          <label>Email Address</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="example@gmail.com"
-            required
-          />
-          <button type="submit" className="forget-btn">Search</button>
-        </form>
-
-        {message && <div className="message-box">{message}</div>}
-      </div>
       <button
-        className="close-btn"
-        onClick={() => window.history.back()}
-        title="Close"
+        type="button"
+        className="forget-back-button"
+        onClick={() => navigate(-1)}
+        aria-label="Go back"
       >
-        ✕
+        <FaArrowLeft />
       </button>
+
+      <Navbar />
+
+      <main className="forget-reset-section">
+        <section className="forget-reset-content">
+          <BrandLogo className="auth-form-logo" size="small" />
+          <span className="forget-kicker">Account recovery</span>
+          <h1>Forgot Password?</h1>
+          <p>
+            Enter your email address or phone number and we will send an OTP to verify your
+            account.
+          </p>
+
+          <form onSubmit={handleSendResetLink} className="forget-form">
+            <input
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="Email address or phone number"
+              required
+            />
+            <button type="submit" className="forget-btn" disabled={isSending}>
+              {isSending ? "Sending..." : "Send OTP"}
+            </button>
+          </form>
+
+          {message && <div className="message-box">{message}</div>}
+        </section>
+      </main>
     </div>
   );
 };
