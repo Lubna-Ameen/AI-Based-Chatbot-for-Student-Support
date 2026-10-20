@@ -66,6 +66,10 @@ describe("frontend pages", () => {
 
     expect(await screen.findByText("Name is required")).toBeInTheDocument();
     expect(screen.getByText("Email is required")).toBeInTheDocument();
+    expect(screen.getByText("Student ID is required")).toBeInTheDocument();
+    expect(screen.getByText("Program is required")).toBeInTheDocument();
+    expect(screen.getByText("Academic year is required")).toBeInTheDocument();
+    expect(screen.getByText("Department is required")).toBeInTheDocument();
     expect(screen.getByText("Password is required")).toBeInTheDocument();
     expect(screen.getByText("Confirm Password is required")).toBeInTheDocument();
     expect(axios.post).not.toHaveBeenCalled();
@@ -114,11 +118,11 @@ describe("frontend pages", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/admin/login");
   });
 
-  it("navigates to /search after successful student login", async () => {
+  it("redirects to /student/dashboard after successful student login", async () => {
     axios.post.mockResolvedValue({
       data: {
         success: true,
-        user: { name: "Test User" },
+        user: { _id: "user-123", name: "Test User", email: "test@test.com" },
       },
     });
 
@@ -126,7 +130,7 @@ describe("frontend pages", () => {
       <MemoryRouter initialEntries={["/login"]}>
         <Routes>
           <Route path="/login" element={<><Login /><LocationDisplay /></>} />
-          <Route path="/search" element={<LocationDisplay />} />
+          <Route path="/student/dashboard" element={<LocationDisplay />} />
           <Route path="*" element={<LocationDisplay />} />
         </Routes>
       </MemoryRouter>
@@ -137,7 +141,41 @@ describe("frontend pages", () => {
     await userEvent.click(container.querySelector(".login-btn"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent("/search");
+      expect(screen.getByTestId("location")).toHaveTextContent("/student/dashboard");
+    });
+  });
+
+  it("redirects to /student/dashboard after successful student registration", async () => {
+    axios.post.mockResolvedValue({
+      data: {
+        success: true,
+        user: { _id: "user-456", name: "New Student", email: "newstudent@test.com" },
+      },
+    });
+
+    const { container } = render(
+      <MemoryRouter initialEntries={["/register"]}>
+        <Routes>
+          <Route path="/register" element={<><Register /><LocationDisplay /></>} />
+          <Route path="/student/dashboard" element={<LocationDisplay />} />
+          <Route path="*" element={<LocationDisplay />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await userEvent.type(screen.getByPlaceholderText("Name is required"), "New Student");
+    await userEvent.type(screen.getByPlaceholderText("Email is required"), "newstudent@test.com");
+    await userEvent.type(screen.getByPlaceholderText("Student ID"), "STU-1001");
+    await userEvent.type(screen.getByPlaceholderText("Phone number"), "5551234567");
+    await userEvent.type(screen.getByPlaceholderText("Program"), "Computer Science");
+    await userEvent.type(screen.getByPlaceholderText("Academic year"), "2026");
+    await userEvent.type(screen.getByPlaceholderText("Department"), "Engineering");
+    await userEvent.type(screen.getAllByPlaceholderText("Password is required")[0], "password123");
+    await userEvent.type(screen.getByPlaceholderText("Confirm your password"), "password123");
+    await userEvent.click(container.querySelector(".register-btn"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/student/dashboard");
     });
   });
 
@@ -161,7 +199,7 @@ describe("frontend pages", () => {
         <Routes>
           <Route path="/forget-password" element={<><Forgetpass /><LocationDisplay /></>} />
           <Route path="/verify" element={<><Emailver /><LocationDisplay /></>} />
-          <Route path="/change-password" element={<LocationDisplay />} />
+          <Route path="/reset-password" element={<LocationDisplay />} />
           <Route path="*" element={<LocationDisplay />} />
         </Routes>
       </MemoryRouter>
@@ -178,10 +216,10 @@ describe("frontend pages", () => {
     expect(screen.getByTestId("location")).not.toHaveTextContent("/change-password");
 
     await userEvent.type(screen.getByPlaceholderText("OTP Code"), "123456");
-    await userEvent.click(screen.getByRole("button", { name: /verify email/i }));
+    await userEvent.click(screen.getByRole("button", { name: /verify code/i }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent("/change-password");
+      expect(screen.getByTestId("location")).toHaveTextContent("/reset-password");
     });
   });
 
@@ -222,7 +260,7 @@ describe("frontend pages", () => {
       <MemoryRouter
         initialEntries={[
           {
-            pathname: "/change-password",
+            pathname: "/reset-password",
             state: {
               email: "test@example.com",
               resetToken: "reset-token",
@@ -231,7 +269,7 @@ describe("frontend pages", () => {
         ]}
       >
         <Routes>
-          <Route path="/change-password" element={<><ChangePassword /><LocationDisplay /></>} />
+          <Route path="/reset-password" element={<><ChangePassword /><LocationDisplay /></>} />
           <Route path="/login" element={<LocationDisplay />} />
           <Route path="*" element={<LocationDisplay />} />
         </Routes>
@@ -240,7 +278,7 @@ describe("frontend pages", () => {
 
     await userEvent.type(screen.getByPlaceholderText("New Password"), "Newpass1234!");
     await userEvent.type(screen.getByPlaceholderText("Confirm Password"), "Newpass1234!");
-    await userEvent.click(screen.getByRole("button", { name: /change password/i }));
+    await userEvent.click(screen.getByRole("button", { name: /reset password/i }));
 
     await waitFor(() => {
       expect(axios.post).toHaveBeenCalledWith("http://127.0.0.1:3002/reset-password", {

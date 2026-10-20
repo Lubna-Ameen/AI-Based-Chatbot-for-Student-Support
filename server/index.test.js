@@ -400,4 +400,34 @@ describe("server API", () => {
     });
     expect(response.body.otp).toBeUndefined();
   });
+
+  test("admin student detail API returns a single student record", async () => {
+    const studentDoc = {
+      _id: "student-1",
+      name: "Test Student",
+      email: "student@example.com",
+      studentId: "STU-1001",
+      role: "student",
+      phoneNumber: "123456789",
+      program: "Computer Science",
+      academicYear: "2025",
+      department: "Engineering",
+      gpa: 3.75,
+      riskStatus: "Low risk",
+      alerts: ["Met with advisor"],
+      recommendations: ["Continue current study plan"],
+    };
+
+    jest.spyOn(UserModel, "findOne").mockReturnValue({
+      select: jest.fn().mockResolvedValue(studentDoc),
+    });
+
+    const response = await request(app).get("/admin/students/student-1");
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.student.name).toBe("Test Student");
+    expect(response.body.student.gpa).toBe(3.75);
+    expect(response.body.student.riskStatus).toBe("Low risk");
+  });
 });

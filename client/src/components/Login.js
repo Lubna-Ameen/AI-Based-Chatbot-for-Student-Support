@@ -42,7 +42,7 @@ const Login = () => {
           localStorage.setItem('studentUser', JSON.stringify(response.data.user));
         }
 
-        navigate('/search');
+        navigate('/student/dashboard');
 
         return;
 

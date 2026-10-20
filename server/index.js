@@ -79,6 +79,15 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
+  phoneNumber: { type: String, default: "", trim: true },
+  program: { type: String, default: "", trim: true },
+  academicYear: { type: String, default: "", trim: true },
+  department: { type: String, default: "", trim: true },
+  gpa: { type: Number, default: null },
+  riskStatus: { type: String, default: "", trim: true },
+  aiPrediction: { type: String, default: "", trim: true },
+  alerts: { type: [String], default: [] },
+  recommendations: { type: [String], default: [] },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -134,8 +143,24 @@ const PasswordResetModel =
 
 const isBcryptHash = (password = "") => /^\$2[aby]\$\d{2}\$/.test(password);
 
-const isDatabaseConnected = () =>
-  process.env.NODE_ENV === "test" || mongoose.connection.readyState === 1;
+let activeDatabaseConnection = null;
+
+const isDatabaseConnected = () => {
+  if (process.env.NODE_ENV === "test") {
+    return true;
+  }
+
+  const connection = activeDatabaseConnection || mongoose.connection;
+
+  if (!connection) {
+    return false;
+  }
+
+  const readyState = connection.readyState;
+  const hasDatabase = Boolean(connection.db && connection.db.databaseName);
+
+  return readyState === 1 || hasDatabase;
+};
 
 const maskMongoUri = (uri = "") =>
   uri.replace(/\/\/([^:]+):([^@]+)@/, "//***:***@");
@@ -286,6 +311,7 @@ const connectDatabase = async () => {
       `MongoDB SRV connection timed out after ${connectionTimeoutMs}ms`
     );
 
+    activeDatabaseConnection = mongoose.connection;
     console.log("[database] MongoDB connected successfully");
     console.log(`[database] Database: ${mongoose.connection.db?.databaseName || mongoose.connection.name || "connected"}`);
   } catch (error) {
@@ -303,6 +329,7 @@ const connectDatabase = async () => {
           `MongoDB direct fallback timed out after ${connectionTimeoutMs}ms`
         );
 
+        activeDatabaseConnection = mongoose.connection;
         console.log("[database] MongoDB connected successfully using direct fallback");
         console.log(`[database] Database: ${mongoose.connection.db?.databaseName || mongoose.connection.name || "connected"}`);
         return;
@@ -512,7 +539,7 @@ app.post("/register", async (req, res) => {
       });
     }
 
-    const { name, email, password, role = "student", studentId = null } = req.body;
+    const { name, email, password, role = "student", studentId = null, phoneNumber = "", program = "", academicYear = "", department = "" } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).send({
@@ -540,6 +567,10 @@ app.post("/register", async (req, res) => {
       verified: true,
       role,
       studentId,
+      phoneNumber,
+      program,
+      academicYear,
+      department,
     });
     /* Save the new user to the database and return a success response. */
     await newUser.save();
@@ -550,8 +581,14 @@ app.post("/register", async (req, res) => {
       message: "Registration successful.",
       email: normalizedEmail,
       user: {
+        _id: newUser._id,
         name,
         email: normalizedEmail,
+        studentId: newUser.studentId,
+        phoneNumber: newUser.phoneNumber,
+        program: newUser.program,
+        academicYear: newUser.academicYear,
+        department: newUser.department,
       },
     });
   } catch (error) {
@@ -629,8 +666,14 @@ app.post("/login", async (req, res) => {
       success: true,
       message: "Login Successful",
       user: {
+        _id: user._id,
         name: user.name,
         email: user.email,
+        studentId: user.studentId,
+        phoneNumber: user.phoneNumber,
+        program: user.program,
+        academicYear: user.academicYear,
+        department: user.department,
       },
     });
   } catch (error) {
@@ -925,34 +968,83 @@ app.post("/reset-password", async (req, res) => {
   }
 });
 
-/* Additional routes for user management (update, delete) 
-can be added here. Make sure to handle authentication and authorization as needed.*/
+app.get("/admin/students", async (req, res) => {
+  try {
+    if (!isDatabaseConnected()) return res.status(503).send({ success: false, message: "Database not connected" });
+    const students = await UserModel.find({ role: { $ne: "admin" } }).select("-password").sort({ createdAt: -1 });
+    res.send({ success: true, students });
+  } catch (error) {
+    res.status(500).send({ success: false, message: "Unable to load students", error: error.message });
+  }
+});
+
+app.get("/admin/students/:id", async (req, res) => {
+  try {
+    if (!isDatabaseConnected()) return res.status(503).send({ success: false, message: "Database not connected" });
+    const studentQuery = UserModel.findOne({ _id: req.params.id, role: { $ne: "admin" } });
+    const student = await (typeof studentQuery?.select === "function" ? studentQuery.select("-password") : studentQuery);
+    if (!student) return res.status(404).send({ success: false, message: "Student not found" });
+    res.send({ success: true, student });
+  } catch (error) {
+    res.status(500).send({ success: false, message: "Unable to load student details", error: error.message });
+  }
+});
+
+app.put("/admin/students/:id", async (req, res) => {
+  try {
+    if (!isDatabaseConnected()) return res.status(503).send({ success: false, message: "Database not connected" });
+    const allowed = ["name", "email", "studentId", "phoneNumber", "program", "academicYear", "department", "gpa", "riskStatus", "aiPrediction", "alerts", "recommendations"];
+    const updates = Object.fromEntries(allowed.filter((key) => req.body[key] !== undefined).map((key) => {
+      if (key === "alerts" || key === "recommendations") {
+        const value = Array.isArray(req.body[key]) ? req.body[key] : typeof req.body[key] === "string" ? req.body[key].split(",").map((item) => item.trim()).filter(Boolean) : [];
+        return [key, value];
+      }
+      return [key, typeof req.body[key] === "string" ? req.body[key].trim() : req.body[key]];
+    }));
+    if (updates.email) updates.email = updates.email.toLowerCase();
+    const student = await UserModel.findOneAndUpdate({ _id: req.params.id, role: { $ne: "admin" } }, { $set: updates }, { new: true, runValidators: true }).select("-password");
+    if (!student) return res.status(404).send({ success: false, message: "Student not found" });
+    res.send({ success: true, student });
+  } catch (error) {
+    res.status(error.code === 11000 ? 409 : 500).send({ success: false, message: error.code === 11000 ? "Email already exists" : "Unable to update student", error: error.message });
+  }
+});
+
+app.get("/admin/reports/student-summary", async (req, res) => {
+  try {
+    if (!isDatabaseConnected()) return res.status(503).send({ success: false, message: "Database not connected" });
+    const [totalStudents, verifiedStudents, programStats] = await Promise.all([
+      UserModel.countDocuments({ role: { $ne: "admin" } }),
+      UserModel.countDocuments({ role: { $ne: "admin" }, $or: [{ isVerified: true }, { verified: true }] }),
+      UserModel.aggregate([{ $match: { role: { $ne: "admin" } } }, { $group: { _id: { $ifNull: ["$program", "Not specified"] }, count: { $sum: 1 } } }, { $sort: { count: -1 } }]),
+    ]);
+    res.send({ success: true, report: { totalStudents, verifiedStudents, unverifiedStudents: totalStudents - verifiedStudents, studentsByProgram: programStats.map(({ _id, count }) => ({ program: _id || "Not specified", count })), generatedAt: new Date() } });
+  } catch (error) {
+    res.status(500).send({ success: false, message: "Unable to generate report", error: error.message });
+  }
+});
 
 if (require.main === module) {
-  let serverStarted = false;
-  const server = app.listen(PORT, "127.0.0.1", () => {
-    serverStarted = true;
-    console.log(`[server] API server running on http://127.0.0.1:${PORT}`);
-    logEmailEnvStatus("startup");
+  const startServer = async () => {
+    try {
+      await connectDatabase();
+      console.log("[server] Database-backed routes are ready.");
+      const server = app.listen(PORT, "127.0.0.1", () => {
+        console.log(`[server] API server running on http://127.0.0.1:${PORT}`);
+        logEmailEnvStatus("startup");
+      });
 
-    setImmediate(() => {
-      connectDatabase()
-        .then(() => {
-          console.log("[server] Database-backed routes are ready.");
-        })
-        .catch(() => {
-          console.warn("[server] Database routes will return 503 until MongoDB Atlas allows this connection.");
-        });
-    });
-  });
-
-  server.on("error", (error) => {
-    if (serverStarted) {
-      return;
+      server.on("error", (error) => {
+        console.error(`[server] Failed to start API server: ${error.message}`);
+      });
+    } catch (error) {
+      console.error("[server] Failed to initialize MongoDB connection.");
+      console.error(`[server] ${error.message}`);
+      process.exit(1);
     }
+  };
 
-    console.error(`[server] Failed to start API server: ${error.message}`);
-  });
+  startServer();
 }
 
 module.exports = {

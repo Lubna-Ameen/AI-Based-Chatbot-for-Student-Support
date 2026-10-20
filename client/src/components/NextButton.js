@@ -23,7 +23,7 @@ const NextButton = () => {
 
   if (
     normalizedPath.startsWith("/admin") ||
-    normalizedPath === "/search" ||
+    normalizedPath === "/student/dashboard" ||
     normalizedPath === "/forget-password" ||
     normalizedPath === "/verify" ||
     normalizedPath === "/change-password"

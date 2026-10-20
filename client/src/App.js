@@ -15,8 +15,11 @@ import Logout from "./components/Logout";
 import AdminAuth from "./components/AdminAuth";
 import AdminForgotPassword from "./components/AdminForgotPassword";
 import AdminDashboard from "./components/AdminDashboard";
-import SearchPage from "./components/SearchPage";
-/* The App component sets up the routing for the application using React Router. It defines routes for various pages such as Welcome, Home, Login, Register, Email Verification, Change Password, Logout, Forget Password, About, Contact, Search Page, and Admin-related pages. 
+import Notifications from "./components/Notifications";
+import MyProgress from "./components/MyProgress";
+import Chatbot from "./components/Chatbot";
+import StudentDashboard from "./components/StudentDashboard/StudentDashboard";
+/* The App component sets up the routing for the application using React Router. It defines routes for public, student, and admin pages.
  The NextButton component is included outside of the Routes to ensure it is rendered on all pages. */
 function App() {
   return (
@@ -28,15 +31,19 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify" element={<Emailver />} />
+        <Route path="/reset-password" element={<ChangePassword />} />
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/logout" element={<Logout />} />
         <Route path="/forget-password" element={<Forgetpass />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
-        <Route path="/search" element={<SearchPage />} />
+        <Route path="/notifications" element={<Notifications />} />
+        <Route path="/my-progress" element={<MyProgress />} />
+        <Route path="/chatbot" element={<Chatbot />} />
         <Route path="/admin/login" element={<AdminAuth />} />
         <Route path="/admin/forgot-password" element={<AdminForgotPassword />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/student/dashboard" element={<StudentDashboard />} />
         <Route path="*" element={<Welcome />} />
       </Routes>
       <NextButton />

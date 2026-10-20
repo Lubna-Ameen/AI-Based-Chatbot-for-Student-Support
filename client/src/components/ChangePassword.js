@@ -88,7 +88,7 @@ const ChangePassword = () => {
         <form className="change-password-form" onSubmit={handleSubmit}>
           <BrandLogo className="change-password-logo" size="medium" />
 
-          <h1>Change Password</h1>
+          <h1>Reset Password</h1>
           <p>
             Create a strong new password to keep your AI Student Support account
             secure.
@@ -133,7 +133,7 @@ const ChangePassword = () => {
           {message && <p className="change-password-error">{message}</p>}
 
           <button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Changing..." : "Change Password"}
+            {isSubmitting ? "Resetting..." : "Reset Password"}
           </button>
         </form>
       </main>

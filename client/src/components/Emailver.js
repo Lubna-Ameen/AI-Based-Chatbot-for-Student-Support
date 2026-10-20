@@ -35,7 +35,7 @@ const Emailver = () => {
 
       if (response.data.success) {
         if (isPasswordReset) {
-          navigate('/change-password', {
+          navigate('/reset-password', {
             state: {
               email: data.email,
               resetToken: response.data.resetToken,
@@ -44,7 +44,7 @@ const Emailver = () => {
           return;
         }
 
-        navigate('/search');
+        navigate('/student/dashboard');
         return;
       }
 
@@ -101,10 +101,9 @@ const Emailver = () => {
         <form className="form-box" onSubmit={handleSubmit(onSubmit)}>
           <BrandLogo className="verification-logo" size="medium" />
 
-          <h2>Email Verification</h2>
+          <h2>{isPasswordReset ? 'Verify Reset Code' : 'Email Verification'}</h2>
           <p className="emailver-description">
-            Enter your email address and the OTP code sent to your inbox to
-            verify your account securely.
+            Enter the OTP code sent to your account contact to continue securely.
           </p>
 
         <input
@@ -136,7 +135,7 @@ const Emailver = () => {
         {errors.root && <p className="error-message">{errors.root.message}</p>}
 
         <button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Verifying...' : 'Verify Email'}
+          {isSubmitting ? 'Verifying...' : isPasswordReset ? 'Verify Code' : 'Verify Email'}
         </button>
 
         <button type="button" className="link-button" onClick={resendOtp}>

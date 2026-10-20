@@ -15,6 +15,11 @@ const Register = () => {
     formState: { errors, isSubmitting },
     setError,
   } = useForm();
+  const phoneRegistration = register("phoneNumber", {
+    required: "Phone number is required",
+    validate: (value) =>
+      value.length === 8 || "Phone number must be exactly 8 digits",
+  });
 
   const onSubmit = async (data) => {
     if (data.password !== data.confirmPassword) {
@@ -30,6 +35,11 @@ const Register = () => {
         name: data.name,
         email: data.email,
         password: data.password,
+        studentId: data.studentId,
+        phoneNumber: `+968${data.phoneNumber}`,
+        program: data.program,
+        academicYear: data.academicYear,
+        department: data.department,
       });
 
       if (response.data.success) {
@@ -37,7 +47,7 @@ const Register = () => {
           localStorage.setItem("studentUser", JSON.stringify(response.data.user));
         }
 
-        navigate("/search");
+        navigate("/student/dashboard");
       } else {
         setError("root", {
           type: "server",
@@ -136,6 +146,64 @@ const Register = () => {
           {errors.email && (
             <p className="error-message">{errors.email.message}</p>
           )}
+
+          <input type="text" placeholder="Student ID" {...register("studentId", { required: "Student ID is required" })} />
+          {errors.studentId && <p className="error-message">{errors.studentId.message}</p>}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              height: 58,
+              marginBottom: 15,
+              padding: "0 18px",
+              border: "1px solid rgba(18, 130, 77, 0.13)",
+              borderRadius: 18,
+              background: "rgba(255, 255, 255, 0.82)",
+              boxShadow: "0 14px 32px rgba(17, 84, 50, 0.07)",
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{ color: "#173728", fontSize: 15, whiteSpace: "nowrap" }}
+            >
+              +968
+            </span>
+            <input
+              type="tel"
+              inputMode="numeric"
+              maxLength={8}
+              aria-label="Phone number (8 digits)"
+              placeholder="Phone number"
+              {...phoneRegistration}
+              onChange={(event) => {
+                event.target.value = event.target.value.replace(/\D/g, "").slice(0, 8);
+                phoneRegistration.onChange(event);
+              }}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                width: "100%",
+                height: "100%",
+                margin: 0,
+                padding: "0 0 0 10px",
+                border: 0,
+                borderRadius: 0,
+                background: "transparent",
+                boxShadow: "none",
+                transform: "none",
+              }}
+            />
+          </div>
+          {errors.phoneNumber && (
+            <p className="error-message">{errors.phoneNumber.message}</p>
+          )}
+          <input type="text" placeholder="Program" {...register("program", { required: "Program is required" })} />
+          {errors.program && <p className="error-message">{errors.program.message}</p>}
+          <input type="text" placeholder="Academic year" {...register("academicYear", { required: "Academic year is required" })} />
+          {errors.academicYear && <p className="error-message">{errors.academicYear.message}</p>}
+          <input type="text" placeholder="Department" {...register("department", { required: "Department is required" })} />
+          {errors.department && <p className="error-message">{errors.department.message}</p>}
 
           <input
             type="password"
