@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   FaArrowLeft,
   FaFingerprint,
@@ -9,28 +9,44 @@ import {
   FaUserShield,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
-import { setAdminSession, validateAdminLogin } from "../adminAccounts";
-import BrandLogo from "./BrandLogo";
-import "./Style.css";
+import { post } from "./adminApi";
+import { clearLegacyAdminCredentials } from "./adminAccounts";
+import BrandLogo from "../BrandLogo";
+import "../Style.css";
 
 const AdminAuth = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLogin = (event) => {
+  useEffect(() => {
+    clearLegacyAdminCredentials();
+  }, []);
+
+  const handleLogin = async (event) => {
     event.preventDefault();
-    const result = validateAdminLogin(email, password);
-
-    if (!result.success) {
-      setError(result.message);
-      return;
-    }
-
+    setIsSubmitting(true);
     setError("");
-    setAdminSession(email);
-    navigate("/admin/dashboard");
+    try {
+      await post("/auth/login", { email, password });
+      navigate("/admin/dashboard");
+    } catch (requestError) {
+      const status = requestError.response?.status;
+      const serverMessage = requestError.response?.data?.message;
+      if (serverMessage) {
+        setError(serverMessage);
+      } else if (status === 404) {
+        setError("Admin sign-in endpoint is unavailable. Restart the backend server and try again.");
+      } else if (status) {
+        setError(`Admin server returned HTTP ${status}. Please try again.`);
+      } else {
+        setError("Unable to reach the Admin server. Check that it is running on port 3002.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -134,8 +150,8 @@ const AdminAuth = () => {
               </button>
             </div>
 
-            <button type="submit" className="admin-primary-button">
-              Log In
+            <button type="submit" className="admin-primary-button" disabled={isSubmitting}>
+              {isSubmitting ? "Signing in..." : "Log In"}
             </button>
           </form>
         </section>

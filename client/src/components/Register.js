@@ -8,6 +8,14 @@ import "./Style.css";
 
 const Register = () => {
   const navigate = useNavigate();
+  const departments = [
+    "Business Studies",
+    "Engineering",
+    "Information Technology (IT)",
+    "Applied Sciences",
+    "Pharmacy",
+    "Fashion Design",
+  ];
 
   const {
     register,
@@ -202,7 +210,24 @@ const Register = () => {
           {errors.program && <p className="error-message">{errors.program.message}</p>}
           <input type="text" placeholder="Academic year" {...register("academicYear", { required: "Academic year is required" })} />
           {errors.academicYear && <p className="error-message">{errors.academicYear.message}</p>}
-          <input type="text" placeholder="Department" {...register("department", { required: "Department is required" })} />
+          <select
+            aria-label="Department"
+            defaultValue=""
+            {...register("department", {
+              required: "Department is required",
+              validate: (value) =>
+                departments.includes(value) || "Select a valid department",
+            })}
+          >
+            <option value="" disabled>
+              Select Your Department
+            </option>
+            {departments.map((department) => (
+              <option value={department} key={department}>
+                {department}
+              </option>
+            ))}
+          </select>
           {errors.department && <p className="error-message">{errors.department.message}</p>}
 
           <input

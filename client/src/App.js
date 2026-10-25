@@ -12,9 +12,17 @@ import Contact from "./components/Contact";
 import NextButton from "./components/NextButton";
 import ChangePassword from "./components/ChangePassword";
 import Logout from "./components/Logout";
-import AdminAuth from "./components/AdminAuth";
-import AdminForgotPassword from "./components/AdminForgotPassword";
-import AdminDashboard from "./components/AdminDashboard";
+import AdminAuth from "./components/Admin/AdminAuth";
+import AdminForgotPassword from "./components/Admin/AdminForgotPassword";
+import AdminDashboard from "./components/Admin/AdminDashboard";
+import AdminAccess from "./components/Admin/AdminAccess";
+import AdminPage from "./components/Admin/AdminPage";
+import AdminStudentManagement from "./components/Admin/AdminStudentManagement";
+import AdminAcademicRecords from "./components/Admin/AdminAcademicRecords";
+import AdminProfile from "./components/Admin/AdminProfile";
+import AdminChangePassword from "./components/Admin/AdminChangePassword";
+import AdminReports from "./components/Admin/AdminReports";
+import AdminRiskMonitoring from "./components/Admin/AdminRiskMonitoring";
 import Notifications from "./components/Notifications";
 import MyProgress from "./components/MyProgress";
 import Chatbot from "./components/Chatbot";
@@ -40,9 +48,15 @@ function App() {
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/my-progress" element={<MyProgress />} />
         <Route path="/chatbot" element={<Chatbot />} />
-        <Route path="/admin/login" element={<AdminAuth />} />
+        <Route path="/admin/login" element={<AdminAccess><AdminAuth /></AdminAccess>} />
         <Route path="/admin/forgot-password" element={<AdminForgotPassword />} />
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/admin/dashboard" element={<AdminAccess><AdminDashboard /></AdminAccess>} />
+        <Route path="/admin/students" element={<AdminAccess><AdminPage><AdminStudentManagement /></AdminPage></AdminAccess>} />
+        <Route path="/admin/academic-records" element={<AdminAccess><AdminPage><AdminAcademicRecords /></AdminPage></AdminAccess>} />
+        <Route path="/admin/profile" element={<AdminAccess><AdminPage><AdminProfile /></AdminPage></AdminAccess>} />
+        <Route path="/admin/change-password" element={<AdminAccess><AdminPage><AdminChangePassword /></AdminPage></AdminAccess>} />
+        <Route path="/admin/reports" element={<AdminAccess><AdminPage><AdminReports /></AdminPage></AdminAccess>} />
+        <Route path="/admin/risk-monitoring" element={<AdminAccess><AdminPage><AdminRiskMonitoring /></AdminPage></AdminAccess>} />
         <Route path="/student/dashboard" element={<StudentDashboard />} />
         <Route path="*" element={<Welcome />} />
       </Routes>

@@ -5339,7 +5339,8 @@ form input,
   line-height: 1.7;
 }
 
-.register-card input {
+.register-card input,
+.register-card select {
   width: 100%;
   height: 58px;
   margin-bottom: 15px;
@@ -5353,13 +5354,22 @@ form input,
   transition: transform 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease, background 0.24s ease;
 }
 
+.register-card select:invalid {
+  color: #9aa9a1;
+}
+
+.register-card select option {
+  color: #173728;
+}
+
 .register-card input::placeholder {
   color: #9aa9a1;
   font-size: 14px;
   font-weight: 400;
 }
 
-.register-card input:focus {
+.register-card input:focus,
+.register-card select:focus {
   background: #ffffff;
   border-color: rgba(18, 130, 77, 0.42);
   box-shadow: 0 0 0 4px rgba(18, 130, 77, 0.1), 0 18px 36px rgba(17, 84, 50, 0.1);
@@ -8237,6 +8247,50 @@ form input,
 .admin-student-edit input { padding: .65rem; border: 1px solid #b9d8c8; border-radius: 9px; }
 .admin-student-edit div { display: flex; gap: .75rem; }
 .admin-report-summary { margin-top: 2rem; border-top: 1px solid #dcebe3; padding-top: 1rem; }
+.admin-section-card { z-index: 1; }
+.admin-record-student { display: grid; gap: .45rem; max-width: 520px; margin: 1rem 0; color: #1a3f2b; font-weight: 700; }
+.admin-record-student select,
+.admin-academic-form input,
+.admin-academic-form select {
+  min-height: 42px;
+  padding: .6rem .75rem;
+  border: 1px solid #b9d8c8;
+  border-radius: 9px;
+  background: #fff;
+  color: #173728;
+  font: inherit;
+}
+.admin-record-summary,
+.admin-record-list {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #dcebe3;
+  border-radius: 12px;
+  background: #f8fffb;
+}
+.admin-academic-form { display: grid; gap: .85rem; margin-top: 1.5rem; }
+.admin-academic-form > h3 { margin: 1rem 0 .25rem; color: #1a3f2b; }
+.admin-record-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .8rem; }
+.admin-record-grid label,
+.admin-academic-form > label:not(.admin-record-check) { display: grid; gap: .35rem; color: #1a3f2b; font-weight: 650; }
+.admin-record-check { display: flex; align-items: center; gap: .65rem; color: #1a3f2b; }
+.admin-record-check input { width: 18px; height: 18px; }
+.admin-academic-form button,
+.admin-record-actions button {
+  width: fit-content;
+  min-height: 40px;
+  padding: .55rem .9rem;
+  border: 0;
+  border-radius: 9px;
+  background: #126b45;
+  color: white;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.admin-record-list button { margin-left: .75rem; }
+.admin-record-actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 1rem; }
+.admin-auth-error { color: #a52b28; }
 
 .admin-view-button,
 .admin-secondary-button {

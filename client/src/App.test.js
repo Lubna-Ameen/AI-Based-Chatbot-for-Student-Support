@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,9 +9,11 @@ import Register from "./components/Register";
 import Forgetpass from "./components/Forgetpass";
 import Emailver from "./components/Emailver";
 import ChangePassword from "./components/ChangePassword";
-import AdminAuth from "./components/AdminAuth";
-import AdminForgotPassword from "./components/AdminForgotPassword";
-import { ADMIN_ACCOUNTS } from "./adminAccounts";
+import AdminAuth from "./components/Admin/AdminAuth";
+import AdminForgotPassword from "./components/Admin/AdminForgotPassword";
+import AdminPage from "./components/Admin/AdminPage";
+import StudentDashboard from "./components/StudentDashboard/StudentDashboard";
+import { ADMIN_ACCOUNTS } from "./components/Admin/adminAccounts";
 
 vi.mock("axios");
 
@@ -33,6 +35,7 @@ const renderWithRouter = (ui, initialEntries = ["/"]) =>
 beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
+  axios.get.mockReset();
   axios.post.mockReset();
 });
 
@@ -70,6 +73,7 @@ describe("frontend pages", () => {
     expect(screen.getByText("Program is required")).toBeInTheDocument();
     expect(screen.getByText("Academic year is required")).toBeInTheDocument();
     expect(screen.getByText("Department is required")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Department" })).toHaveDisplayValue("Select Your Department");
     expect(screen.getByText("Password is required")).toBeInTheDocument();
     expect(screen.getByText("Confirm Password is required")).toBeInTheDocument();
     expect(axios.post).not.toHaveBeenCalled();
@@ -79,43 +83,121 @@ describe("frontend pages", () => {
     const admin = ADMIN_ACCOUNTS[0];
     renderWithRouter(<><AdminAuth /><LocationDisplay /></>, ["/admin/login"]);
 
+    axios.post
+      .mockRejectedValueOnce({
+        response: { data: { message: "Invalid Admin email or password" } },
+      })
+      .mockResolvedValueOnce({
+        data: { success: true, csrfToken: "test-csrf-token" },
+      });
+
     await userEvent.type(screen.getByPlaceholderText("admin@example.com"), "not-admin@example.com");
     await userEvent.type(screen.getByPlaceholderText("Enter password"), "whatever");
     await userEvent.click(screen.getByRole("button", { name: /log in/i }));
 
-    expect(await screen.findByText("This email is not authorized as an admin.")).toBeInTheDocument();
+    expect(await screen.findByText("Invalid Admin email or password")).toBeInTheDocument();
 
     await userEvent.clear(screen.getByPlaceholderText("admin@example.com"));
     await userEvent.clear(screen.getByPlaceholderText("Enter password"));
     await userEvent.type(screen.getByPlaceholderText("admin@example.com"), admin.email.toUpperCase());
-    await userEvent.type(screen.getByPlaceholderText("Enter password"), admin.defaultPassword);
+    await userEvent.type(screen.getByPlaceholderText("Enter password"), "existing-admin-password");
     await userEvent.click(screen.getByRole("button", { name: /log in/i }));
 
-    expect(screen.getByTestId("location")).toHaveTextContent("/admin/dashboard");
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/admin/dashboard");
+    });
+    expect(axios.post).toHaveBeenLastCalledWith(
+      "http://localhost:3002/admin/auth/login",
+      { email: admin.email.toUpperCase(), password: "existing-admin-password" },
+      expect.objectContaining({ withCredentials: true })
+    );
+  });
+
+  it("explains when the Admin login endpoint is unavailable", async () => {
+    axios.post.mockRejectedValue({
+      response: { status: 404, data: {} },
+    });
+    renderWithRouter(<AdminAuth />, ["/admin/login"]);
+
+    await userEvent.type(screen.getByPlaceholderText("admin@example.com"), ADMIN_ACCOUNTS[0].email);
+    await userEvent.type(screen.getByPlaceholderText("Enter password"), "diagnostic-password");
+    await userEvent.click(screen.getByRole("button", { name: /log in/i }));
+
+    expect(await screen.findByText(/admin sign-in endpoint is unavailable/i)).toBeInTheDocument();
+  });
+
+  it("shows all Admin sections and supports sidebar collapse and navigation", async () => {
+    axios.get.mockResolvedValue({
+      data: { admin: { email: "admin@example.com", displayName: "Admin User", title: "Administrator" } },
+    });
+    renderWithRouter(<><AdminPage><p>Admin content</p></AdminPage><LocationDisplay /></>, ["/admin/dashboard"]);
+
+    const sections = [
+      "Overview",
+      "Students",
+      "Academic Records",
+      "Profile",
+      "Reports",
+      "Risk Monitoring",
+      "Change Password",
+    ];
+    for (const label of sections) {
+      expect(screen.getByRole("link", { name: label })).toBeInTheDocument();
+    }
+    expect(screen.getAllByRole("button", { name: "Logout" })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Notifications are not configured" })).toBeDisabled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
+    expect(document.querySelector(".admin-sidebar")).toHaveClass("is-mobile-open");
+    await userEvent.click(screen.getByRole("button", { name: "Close navigation menu" }));
+    expect(document.querySelector(".admin-sidebar")).not.toHaveClass("is-mobile-open");
+
+    await userEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    expect(screen.getByRole("button", { name: "Expand sidebar" })).toBeInTheDocument();
+    expect(document.querySelector(".admin-portal-shell")).toHaveClass("is-sidebar-collapsed");
+
+    const paths = [
+      "/admin/dashboard",
+      "/admin/students",
+      "/admin/academic-records",
+      "/admin/profile",
+      "/admin/reports",
+      "/admin/risk-monitoring",
+      "/admin/change-password",
+    ];
+    for (let index = 0; index < sections.length; index += 1) {
+      await userEvent.click(screen.getByRole("link", { name: sections[index] }));
+      await waitFor(() => {
+        expect(screen.getByTestId("location")).toHaveTextContent(paths[index]);
+      });
+    }
   });
 
   it("completes the admin forgot password demo flow", async () => {
     const admin = ADMIN_ACCOUNTS[0];
     renderWithRouter(<><AdminForgotPassword /><LocationDisplay /></>, ["/admin/forgot-password"]);
 
+    axios.post
+      .mockResolvedValueOnce({ data: { success: true } })
+      .mockResolvedValueOnce({ data: { success: true, resetToken: "server-reset-token" } })
+      .mockResolvedValueOnce({ data: { success: true } });
+
     await userEvent.type(screen.getByPlaceholderText("admin@example.com"), admin.email);
     await userEvent.click(screen.getByRole("button", { name: /send verification code/i }));
 
-    expect(await screen.findByText(/demo verification code/i)).toBeInTheDocument();
+    expect(await screen.findByText(/verification code sent to your admin email/i)).toBeInTheDocument();
 
-    await userEvent.type(screen.getByPlaceholderText("Enter verification code"), "000000");
-    await userEvent.click(screen.getByRole("button", { name: /verify code/i }));
-    expect(await screen.findByText(/verification code is incorrect/i)).toBeInTheDocument();
-
-    await userEvent.clear(screen.getByPlaceholderText("Enter verification code"));
     await userEvent.type(screen.getByPlaceholderText("Enter verification code"), "123456");
     await userEvent.click(screen.getByRole("button", { name: /verify code/i }));
 
+    await screen.findByPlaceholderText("Create new password");
     await userEvent.type(screen.getByPlaceholderText("Create new password"), "NewAdmin@123");
     await userEvent.type(screen.getByPlaceholderText("Confirm new password"), "NewAdmin@123");
     await userEvent.click(screen.getByRole("button", { name: /reset password/i }));
 
-    expect(screen.getByTestId("location")).toHaveTextContent("/admin/login");
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/admin/login");
+    });
   });
 
   it("redirects to /student/dashboard after successful student login", async () => {
@@ -169,7 +251,7 @@ describe("frontend pages", () => {
     await userEvent.type(screen.getByPlaceholderText("Phone number"), "5551234567");
     await userEvent.type(screen.getByPlaceholderText("Program"), "Computer Science");
     await userEvent.type(screen.getByPlaceholderText("Academic year"), "2026");
-    await userEvent.type(screen.getByPlaceholderText("Department"), "Engineering");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Department" }), "Engineering");
     await userEvent.type(screen.getAllByPlaceholderText("Password is required")[0], "password123");
     await userEvent.type(screen.getByPlaceholderText("Confirm your password"), "password123");
     await userEvent.click(container.querySelector(".register-btn"));
@@ -177,6 +259,39 @@ describe("frontend pages", () => {
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/student/dashboard");
     });
+    expect(axios.post).toHaveBeenCalledWith(
+      "http://localhost:3002/register",
+      expect.objectContaining({ department: "Engineering" })
+    );
+  });
+
+  it("shows the saved department in the student profile", async () => {
+    localStorage.setItem(
+      "studentUser",
+      JSON.stringify({ _id: "student-1", email: "student@example.com" })
+    );
+    axios.get.mockResolvedValue({
+      data: [
+        {
+          _id: "student-1",
+          name: "Test Student",
+          email: "student@example.com",
+          role: "student",
+          department: "Information Technology (IT)",
+        },
+      ],
+    });
+
+    renderWithRouter(<StudentDashboard />, ["/student/dashboard"]);
+
+    const profileHeading = await screen.findByRole("heading", {
+      name: "Test Student",
+      level: 2,
+    });
+    const profile = profileHeading.closest("#my-profile");
+    expect(
+      await within(profile).findByText("Information Technology (IT)")
+    ).toBeInTheDocument();
   });
 
   it("requires OTP verification before showing the password reset page", async () => {

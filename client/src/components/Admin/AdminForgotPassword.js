@@ -10,13 +10,12 @@ import {
   FaShieldAlt,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
-import { isAdminEmail, setAdminPassword } from "../adminAccounts";
-import BrandLogo from "./BrandLogo";
-import "./Style.css";
+import { isAdminEmail } from "./adminAccounts";
+import { post } from "./adminApi";
+import BrandLogo from "../BrandLogo";
+import "../Style.css";
 
 const steps = ["Forgot Password", "Email Verification", "Change Password"];
-const DEMO_VERIFICATION_CODE = "123456";
-
 const AdminForgotPassword = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
@@ -24,7 +23,9 @@ const AdminForgotPassword = () => {
   const [verificationCode, setVerificationCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [resetToken, setResetToken] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const passwordRules = useMemo(
     () => [
@@ -39,44 +40,46 @@ const AdminForgotPassword = () => {
   const isPasswordInvalid =
     step === 2 && password.length > 0 && passwordRules.some((rule) => !rule.valid);
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-
-    if (step === 0) {
-      if (!isAdminEmail(email)) {
-        setError("This email is not authorized as an admin.");
-        return;
-      }
-
-      setError("");
-      setStep(1);
-      return;
-    }
-
-    if (step === 1) {
-      if (verificationCode.trim() !== DEMO_VERIFICATION_CODE) {
-        setError("The verification code is incorrect. Use the demo code 123456.");
-        return;
-      }
-
-      setError("");
-      setStep(2);
-      return;
-    }
-
-    if (passwordRules.some((rule) => !rule.valid)) {
-      setError("Please choose a password that meets all admin password rules.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("New password and confirm password do not match.");
-      return;
-    }
-
-    setAdminPassword(email, password);
+    setIsSubmitting(true);
     setError("");
-    navigate("/admin/login");
+    try {
+      if (step === 0) {
+        if (!isAdminEmail(email)) {
+          setError("This email is not authorized as an admin.");
+          return;
+        }
+        await post("/auth/forgot-password", { email });
+        setStep(1);
+        return;
+      }
+
+      if (step === 1) {
+        const response = await post("/auth/verify-reset-otp", {
+          email,
+          code: verificationCode.trim(),
+        });
+        setResetToken(response.data.resetToken);
+        setStep(2);
+        return;
+      }
+
+      if (passwordRules.some((rule) => !rule.valid)) {
+        setError("Please choose a password that meets all admin password rules.");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("New password and confirm password do not match.");
+        return;
+      }
+      await post("/auth/reset-password", { email, resetToken, password });
+      navigate("/admin/login");
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Unable to process password recovery.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -176,10 +179,7 @@ const AdminForgotPassword = () => {
               {step === 1 && (
                 <>
                 <h1>Email Verification</h1>
-                <p>Enter the verification code for your admin password reset.</p>
-                <div className="admin-demo-code">
-                  Demo verification code: <strong>{DEMO_VERIFICATION_CODE}</strong>
-                </div>
+                <p>Enter the verification code sent to your admin email address.</p>
                 <label>
                   <span>Verification Code</span>
                   <input
@@ -194,8 +194,8 @@ const AdminForgotPassword = () => {
                   />
                 </label>
                 {error && <p className="admin-auth-error">{error}</p>}
-                <button type="submit" className="admin-primary-button">
-                  Verify Code
+                <button type="submit" className="admin-primary-button" disabled={isSubmitting}>
+                  {isSubmitting ? "Verifying..." : "Verify Code"}
                 </button>
                 </>
               )}
@@ -246,8 +246,8 @@ const AdminForgotPassword = () => {
                   />
                 </label>
                 {error && <p className="admin-auth-error">{error}</p>}
-                <button type="submit" className="admin-primary-button">
-                  Reset Password
+                <button type="submit" className="admin-primary-button" disabled={isSubmitting}>
+                  {isSubmitting ? "Resetting..." : "Reset Password"}
                 </button>
                 </>
               )}
