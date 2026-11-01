@@ -37,6 +37,7 @@ const AdminAcademicRecords = () => {
   const [warning, setWarning] = useState({ code: "", description: "" });
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [activeTab, setActiveTab] = useState("standing");
 
   useEffect(() => {
     get("/students")
@@ -169,8 +170,93 @@ const AdminAcademicRecords = () => {
     }
   };
 
+  const tabs = [
+    { id: "standing", label: "Academic Standing" },
+    { id: "courses", label: "Courses & Grades" },
+    { id: "plan", label: "Study Plan" },
+    { id: "warnings", label: "Academic Warnings" },
+  ];
+
+  const renderStandingTab = () => (
+    <>
+      <label>Academic level<input maxLength={80} value={record.academicLevel || ""} onChange={(event) => setRecord({ ...record, academicLevel: event.target.value })} /></label>
+      <label className="admin-record-check"><input type="checkbox" checked={Boolean(record.verified)} onChange={(event) => setRecord({ ...record, verified: event.target.checked, studyPlanVerified: event.target.checked && Boolean(record.studyPlanVerified) })} />Academic record verified against approved source</label>
+    </>
+  );
+
+  const renderCoursesTab = () => (
+    <>
+      <label>Semester<input maxLength={80} value={semester} onChange={(event) => setSemester(event.target.value)} placeholder="Enter semester label from source records" /></label>
+      <div className="admin-record-grid">
+        <label>Semester GPA<input type="number" min="0" step="any" value={semesterGPA} onChange={(event) => setSemesterGPA(event.target.value)} /></label>
+        <label>CGPA<input type="number" min="0" step="any" value={cgpa} onChange={(event) => setCgpa(event.target.value)} /></label>
+        <label>LCGPA<input type="number" min="0" step="any" value={lcgpa} onChange={(event) => setLcgpa(event.target.value)} /></label>
+      </div>
+      <div className="admin-record-grid">
+        <label>Course code<input maxLength={30} value={course.courseCode} onChange={(event) => setCourse({ ...course, courseCode: event.target.value })} /></label>
+        <label>Course name<input maxLength={160} value={course.courseName} onChange={(event) => setCourse({ ...course, courseName: event.target.value })} /></label>
+        <label>Credit hours<input type="number" min="0.1" step="any" value={course.creditHours} onChange={(event) => setCourse({ ...course, creditHours: event.target.value })} /></label>
+        <label>Grade<input maxLength={20} value={course.grade} onChange={(event) => setCourse({ ...course, grade: event.target.value })} /></label>
+        <label>Attendance %<input type="number" min="0" max="100" step="any" value={course.attendancePercentage} onChange={(event) => setCourse({ ...course, attendancePercentage: event.target.value })} /></label>
+        <label>Course status<select value={course.status} onChange={(event) => setCourse({ ...course, status: event.target.value })}><option value="registered">Registered</option><option value="completed">Completed</option><option value="failed">Failed</option></select></label>
+      </div>
+      <div className="admin-record-actions">
+        <button type="button" className="admin-secondary-button" onClick={addCourse}>Add course to semester</button>
+      </div>
+      {record.semesters.map((item) => (
+        <article className="admin-record-list" key={item.semester}>
+          <h4>{item.semester} · GPA {item.semesterGPA ?? "Unavailable"} · CGPA {item.cgpa ?? "Unavailable"} · LCGPA {item.lcgpa ?? "Unavailable"}</h4>
+          {item.courses.map((entry) => (
+            <p key={entry.courseCode}>
+              {entry.courseCode} · {entry.courseName} · {entry.creditHours} credits · {entry.grade || "No grade"} · {entry.status}
+              <button type="button" onClick={() => setRecord({ ...record, semesters: record.semesters.map((term) => term.semester === item.semester ? { ...term, courses: term.courses.filter((saved) => saved.courseCode !== entry.courseCode) } : term) })}>Remove</button>
+            </p>
+          ))}
+        </article>
+      ))}
+    </>
+  );
+
+  const renderPlanTab = () => (
+    <>
+      <div className="admin-record-grid">
+        <label>Course code<input maxLength={30} value={planCourse.courseCode} onChange={(event) => setPlanCourse({ ...planCourse, courseCode: event.target.value })} /></label>
+        <label>Course name<input maxLength={160} value={planCourse.courseName} onChange={(event) => setPlanCourse({ ...planCourse, courseName: event.target.value })} /></label>
+        <label>Credit hours<input type="number" min="0.1" step="any" value={planCourse.creditHours} onChange={(event) => setPlanCourse({ ...planCourse, creditHours: event.target.value })} /></label>
+      </div>
+      <div className="admin-record-actions">
+        <button type="button" className="admin-secondary-button" onClick={addStudyPlanCourse}>Add study-plan course</button>
+      </div>
+      <label className="admin-record-check"><input type="checkbox" checked={Boolean(record.studyPlanVerified)} disabled={!record.verified || !record.studyPlan.length} onChange={(event) => setRecord({ ...record, studyPlanVerified: event.target.checked })} />Study plan verified</label>
+      {record.studyPlan.map((item) => (
+        <p className="admin-record-list" key={item.courseCode}>
+          {item.courseCode} · {item.courseName} · {item.creditHours} credits
+          <button type="button" onClick={() => setRecord({ ...record, studyPlan: record.studyPlan.filter((entry) => entry.courseCode !== item.courseCode), studyPlanVerified: false })}>Remove</button>
+        </p>
+      ))}
+    </>
+  );
+
+  const renderWarningsTab = () => (
+    <>
+      <div className="admin-record-grid">
+        <label>Warning code<input maxLength={40} value={warning.code} onChange={(event) => setWarning({ ...warning, code: event.target.value })} /></label>
+        <label>Description<input maxLength={500} value={warning.description} onChange={(event) => setWarning({ ...warning, description: event.target.value })} /></label>
+      </div>
+      <div className="admin-record-actions">
+        <button type="button" className="admin-secondary-button" onClick={addWarning}>Add warning</button>
+      </div>
+      {record.academicWarnings.map((item, index) => (
+        <p className="admin-record-list" key={`${item.code}-${index}`}>
+          {item.code} · {item.description} · {item.status}
+          <button type="button" onClick={() => setRecord({ ...record, academicWarnings: record.academicWarnings.filter((_, warningIndex) => warningIndex !== index) })}>Remove</button>
+        </p>
+      ))}
+    </>
+  );
+
   return (
-    <section className="admin-student-management admin-section-card">
+    <section className="admin-academic-records-page admin-student-management admin-section-card">
       <div className="admin-section-heading">
         <div>
           <p className="admin-eyebrow">ACADEMIC MANAGEMENT</p>
@@ -195,69 +281,43 @@ const AdminAcademicRecords = () => {
       {student && (
         <>
           <div className="admin-record-summary">
-            <p><strong>{student.name}</strong> · {student.studentId || "No university ID"}</p>
-            <p>{student.department || "Department unavailable"} · {student.program || "Major unavailable"}</p>
+            <p><strong>{student.name}</strong></p>
+            <p><span className="admin-record-meta-label">University ID</span> {student.studentId || "Unavailable"}</p>
+            <p><span className="admin-record-meta-label">Department</span> {student.department || "Unavailable"}</p>
+            <p><span className="admin-record-meta-label">Major</span> {student.program || "Unavailable"}</p>
             {calculations.available ? (
               <>
-                <p>Completed courses: {calculations.completedCourses}; failed: {calculations.failedCourses}; registered: {calculations.registeredCourses}</p>
-                <p>Completed credit hours: {calculations.completedCreditHours}</p>
-                <p>Academic progress: {calculations.academicProgressPercentage == null ? "Unavailable until a study plan is verified" : `${calculations.academicProgressPercentage}%`}</p>
-                <p>Average attendance: {calculations.averageAttendancePercentage == null ? "Unavailable" : `${calculations.averageAttendancePercentage}%`}</p>
-                {calculations.remainingCourses && <p>Remaining courses: {calculations.remainingCourses.map((item) => item.courseCode).join(", ") || "None"}</p>}
+                <p><span className="admin-record-meta-label">Completed courses</span> {calculations.completedCourses}</p>
+                <p><span className="admin-record-meta-label">Failed courses</span> {calculations.failedCourses}</p>
+                <p><span className="admin-record-meta-label">Registered courses</span> {calculations.registeredCourses}</p>
+                <p><span className="admin-record-meta-label">Completed credit hours</span> {calculations.completedCreditHours}</p>
+                <p><span className="admin-record-meta-label">Academic progress</span> {calculations.academicProgressPercentage == null ? "Unavailable until a study plan is verified" : `${calculations.academicProgressPercentage}%`}</p>
+                <p><span className="admin-record-meta-label">Average attendance</span> {calculations.averageAttendancePercentage == null ? "Unavailable" : `${calculations.averageAttendancePercentage}%`}</p>
+                {calculations.remainingCourses && <p><span className="admin-record-meta-label">Remaining courses</span> {calculations.remainingCourses.map((item) => item.courseCode).join(", ") || "None"}</p>}
               </>
-            ) : <p>Calculated progress is unavailable until the academic record is verified.</p>}
+            ) : <p><span className="admin-record-meta-label">Progress</span> Calculated progress is unavailable until the academic record is verified.</p>}
           </div>
 
-          <form className="admin-academic-form" onSubmit={saveRecord}>
-            <h3>Academic standing</h3>
-            <label>Academic level<input maxLength={80} value={record.academicLevel || ""} onChange={(event) => setRecord({ ...record, academicLevel: event.target.value })} /></label>
-            <label className="admin-record-check"><input type="checkbox" checked={Boolean(record.verified)} onChange={(event) => setRecord({ ...record, verified: event.target.checked, studyPlanVerified: event.target.checked && Boolean(record.studyPlanVerified) })} />Academic record verified against approved source</label>
+          <form className="admin-academic-records-form admin-academic-form" onSubmit={saveRecord}>
+            <div className="admin-record-tabs" role="tablist" aria-label="Academic record sections">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  className={`admin-record-tab-button${activeTab === tab.id ? " is-active" : ""}`}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-            <h3>Course registrations and grades</h3>
-            <label>Semester<input maxLength={80} value={semester} onChange={(event) => setSemester(event.target.value)} placeholder="Enter semester label from source records" /></label>
-            <div className="admin-record-grid">
-              <label>Semester GPA<input type="number" min="0" step="any" value={semesterGPA} onChange={(event) => setSemesterGPA(event.target.value)} /></label>
-              <label>CGPA<input type="number" min="0" step="any" value={cgpa} onChange={(event) => setCgpa(event.target.value)} /></label>
-              <label>LCGPA<input type="number" min="0" step="any" value={lcgpa} onChange={(event) => setLcgpa(event.target.value)} /></label>
-            </div>
-            <div className="admin-record-grid">
-              <label>Course code<input maxLength={30} value={course.courseCode} onChange={(event) => setCourse({ ...course, courseCode: event.target.value })} /></label>
-              <label>Course name<input maxLength={160} value={course.courseName} onChange={(event) => setCourse({ ...course, courseName: event.target.value })} /></label>
-              <label>Credit hours<input type="number" min="0.1" step="any" value={course.creditHours} onChange={(event) => setCourse({ ...course, creditHours: event.target.value })} /></label>
-              <label>Grade<input maxLength={20} value={course.grade} onChange={(event) => setCourse({ ...course, grade: event.target.value })} /></label>
-              <label>Attendance %<input type="number" min="0" max="100" step="any" value={course.attendancePercentage} onChange={(event) => setCourse({ ...course, attendancePercentage: event.target.value })} /></label>
-              <label>Course status<select value={course.status} onChange={(event) => setCourse({ ...course, status: event.target.value })}><option value="registered">Registered</option><option value="completed">Completed</option><option value="failed">Failed</option></select></label>
-            </div>
-            <button type="button" onClick={addCourse}>Add course to semester</button>
-            {record.semesters.map((item) => (
-              <article className="admin-record-list" key={item.semester}>
-                <h4>{item.semester} · GPA {item.semesterGPA ?? "Unavailable"} · CGPA {item.cgpa ?? "Unavailable"} · LCGPA {item.lcgpa ?? "Unavailable"}</h4>
-                {item.courses.map((entry) => (
-                  <p key={entry.courseCode}>
-                    {entry.courseCode} · {entry.courseName} · {entry.creditHours} credits · {entry.grade || "No grade"} · {entry.status}
-                    <button type="button" onClick={() => setRecord({ ...record, semesters: record.semesters.map((term) => term.semester === item.semester ? { ...term, courses: term.courses.filter((saved) => saved.courseCode !== entry.courseCode) } : term) })}>Remove</button>
-                  </p>
-                ))}
-              </article>
-            ))}
-
-            <h3>Study plan</h3>
-            <div className="admin-record-grid">
-              <label>Course code<input maxLength={30} value={planCourse.courseCode} onChange={(event) => setPlanCourse({ ...planCourse, courseCode: event.target.value })} /></label>
-              <label>Course name<input maxLength={160} value={planCourse.courseName} onChange={(event) => setPlanCourse({ ...planCourse, courseName: event.target.value })} /></label>
-              <label>Credit hours<input type="number" min="0.1" step="any" value={planCourse.creditHours} onChange={(event) => setPlanCourse({ ...planCourse, creditHours: event.target.value })} /></label>
-            </div>
-            <button type="button" onClick={addStudyPlanCourse}>Add study-plan course</button>
-            <label className="admin-record-check"><input type="checkbox" checked={Boolean(record.studyPlanVerified)} disabled={!record.verified || !record.studyPlan.length} onChange={(event) => setRecord({ ...record, studyPlanVerified: event.target.checked })} />Study plan verified</label>
-            {record.studyPlan.map((item) => <p className="admin-record-list" key={item.courseCode}>{item.courseCode} · {item.courseName} · {item.creditHours} credits<button type="button" onClick={() => setRecord({ ...record, studyPlan: record.studyPlan.filter((entry) => entry.courseCode !== item.courseCode), studyPlanVerified: false })}>Remove</button></p>)}
-
-            <h3>Academic warnings</h3>
-            <div className="admin-record-grid">
-              <label>Warning code<input maxLength={40} value={warning.code} onChange={(event) => setWarning({ ...warning, code: event.target.value })} /></label>
-              <label>Description<input maxLength={500} value={warning.description} onChange={(event) => setWarning({ ...warning, description: event.target.value })} /></label>
-            </div>
-            <button type="button" onClick={addWarning}>Add warning</button>
-            {record.academicWarnings.map((item, index) => <p className="admin-record-list" key={`${item.code}-${index}`}>{item.code} · {item.description} · {item.status}<button type="button" onClick={() => setRecord({ ...record, academicWarnings: record.academicWarnings.filter((_, warningIndex) => warningIndex !== index) })}>Remove</button></p>)}
+            {activeTab === "standing" && renderStandingTab()}
+            {activeTab === "courses" && renderCoursesTab()}
+            {activeTab === "plan" && renderPlanTab()}
+            {activeTab === "warnings" && renderWarningsTab()}
 
             <div className="admin-record-actions">
               <button type="submit" className="admin-primary-button">Save academic record</button>

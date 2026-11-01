@@ -66,15 +66,18 @@ const AdminStudentManagement = () => {
         <span className="admin-count-badge">{students.length} students</span>
       </div>
       {message && <p className="message-box">{message}</p>}
-      <label className="admin-search-field">
-        <span className="sr-only">Search students</span>
-        <input
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by name, university ID, email, or department"
-        />
-      </label>
+      <div className="admin-student-toolbar">
+        <label className="admin-search-field">
+          <span className="sr-only">Search students</span>
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search by name, university ID, email, or department"
+          />
+        </label>
+        <span className="admin-count-badge">{filteredStudents.length} results</span>
+      </div>
       <div className="admin-student-table-wrap">
         <table className="admin-student-table">
           <thead><tr><th>Student</th><th>University ID</th><th>Email</th><th>Major</th><th>Year</th><th>Department</th><th>Action</th></tr></thead>

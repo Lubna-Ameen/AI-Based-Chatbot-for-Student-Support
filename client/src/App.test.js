@@ -12,6 +12,7 @@ import ChangePassword from "./components/ChangePassword";
 import AdminAuth from "./components/Admin/AdminAuth";
 import AdminForgotPassword from "./components/Admin/AdminForgotPassword";
 import AdminPage from "./components/Admin/AdminPage";
+import AdminAcademicRecords from "./components/Admin/AdminAcademicRecords";
 import StudentDashboard from "./components/StudentDashboard/StudentDashboard";
 import { ADMIN_ACCOUNTS } from "./components/Admin/adminAccounts";
 
@@ -171,6 +172,72 @@ describe("frontend pages", () => {
         expect(screen.getByTestId("location")).toHaveTextContent(paths[index]);
       });
     }
+  });
+
+  it("supports tab navigation in the Academic Records page", async () => {
+    axios.get
+      .mockResolvedValueOnce({
+        data: {
+          students: [
+            {
+              _id: "student-1",
+              name: "Dana Smith",
+              studentId: "S-001",
+              email: "dana@student.edu",
+              program: "Software Engineering",
+              department: "Computer Science",
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          student: {
+            _id: "student-1",
+            name: "Dana Smith",
+            studentId: "S-001",
+            email: "dana@student.edu",
+            program: "Software Engineering",
+            department: "Computer Science",
+          },
+          academicRecord: {
+            academicLevel: "Level 3",
+            verified: false,
+            semesters: [],
+            studyPlan: [],
+            studyPlanVerified: false,
+            academicWarnings: [],
+          },
+          calculations: { available: false },
+        },
+      });
+
+    renderWithRouter(<AdminAcademicRecords />, ["/admin/academic-records"]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("combobox", { name: /select student/i })).toBeInTheDocument();
+    });
+
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /select student/i }), "student-1");
+
+    await waitFor(() => {
+      expect(screen.getByText("Dana Smith")).toBeInTheDocument();
+    });
+
+    const coursesTab = screen.getByRole("tab", { name: "Courses & Grades" });
+    await userEvent.click(coursesTab);
+    expect(coursesTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText("Semester")).toBeInTheDocument();
+
+    const planTab = screen.getByRole("tab", { name: "Study Plan" });
+    await userEvent.click(planTab);
+    expect(planTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText("Course code")).toBeInTheDocument();
+
+    const warningsTab = screen.getByRole("tab", { name: "Academic Warnings" });
+    await userEvent.click(warningsTab);
+    expect(warningsTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText("Warning code")).toBeInTheDocument();
   });
 
   it("completes the admin forgot password demo flow", async () => {

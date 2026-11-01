@@ -17,6 +17,16 @@ const AdminRiskMonitoring = () => {
       );
   }, []);
 
+  const getRiskStatus = (student) => {
+    if (student.lowGpa || student.attendanceConcern || (student.academicWarnings || []).length > 2) {
+      return { label: "Critical", className: "is-critical" };
+    }
+    if (student.lowGpa || student.attendanceConcern || (student.academicWarnings || []).length > 0) {
+      return { label: "Monitor", className: "is-watch" };
+    }
+    return { label: "Healthy", className: "is-healthy" };
+  };
+
   return (
     <section className="admin-student-management admin-section-card">
       <div className="admin-section-heading">
@@ -27,28 +37,41 @@ const AdminRiskMonitoring = () => {
         </div>
       </div>
       {error && <p className="admin-auth-error" role="alert">{error}</p>}
-      {!thresholdsConfigured.lowGpa && <p>Low-GPA threshold is not configured.</p>}
-      {!thresholdsConfigured.attendance && <p>Attendance threshold is not configured.</p>}
-      <div className="admin-student-table-wrap">
-        <table className="admin-student-table">
-          <thead>
-            <tr><th>Student</th><th>Department</th><th>CGPA</th><th>Attendance</th><th>Warnings</th><th>ML prediction</th></tr>
-          </thead>
-          <tbody>
-            {students.map((student) => (
-              <tr key={student.studentId || student.name}>
-                <td>{student.name} ({student.studentId || "No ID"})</td>
-                <td>{student.department || "Unavailable"}</td>
-                <td>{student.gpa ?? "Unavailable"}{student.lowGpa ? " · Concern" : ""}</td>
-                <td>{student.attendance == null ? "Unavailable" : `${student.attendance}%`}{student.attendanceConcern ? " · Concern" : ""}</td>
-                <td>{student.academicWarnings.length}</td>
-                <td>{student.mlPrediction}</td>
-              </tr>
-            ))}
-            {!students.length && <tr><td className="admin-empty-state" colSpan="6">No verified academic records are available for monitoring.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      {!thresholdsConfigured.lowGpa && <p className="admin-warning-banner">Low-GPA threshold is not configured.</p>}
+      {!thresholdsConfigured.attendance && <p className="admin-warning-banner">Attendance threshold is not configured.</p>}
+
+      {students.length ? (
+        <div className="admin-student-table-wrap">
+          <table className="admin-student-table">
+            <thead>
+              <tr><th>Student</th><th>Department</th><th>CGPA</th><th>Attendance</th><th>Warnings</th><th>Risk status</th><th>ML prediction</th></tr>
+            </thead>
+            <tbody>
+              {students.map((student) => {
+                const riskStatus = getRiskStatus(student);
+                return (
+                  <tr key={student.studentId || student.name}>
+                    <td>{student.name} ({student.studentId || "No ID"})</td>
+                    <td>{student.department || "Unavailable"}</td>
+                    <td>{student.gpa ?? "Unavailable"}</td>
+                    <td>{student.attendance == null ? "Unavailable" : `${student.attendance}%`}</td>
+                    <td>{student.academicWarnings?.length ?? 0}</td>
+                    <td><span className={`admin-risk-badge ${riskStatus.className}`}>{riskStatus.label}</span></td>
+                    <td>{student.mlPrediction}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="admin-empty-state-card">
+          <div>
+            <strong>No verified records available</strong>
+            <span>Risk monitoring data will appear when academic records are available.</span>
+          </div>
+        </div>
+      )}
     </section>
   );
 };

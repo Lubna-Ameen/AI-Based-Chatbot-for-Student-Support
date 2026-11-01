@@ -27,8 +27,9 @@ const AdminChangePassword = () => {
   };
 
   return (
-    <section className="admin-student-management admin-section-card">
+    <section className="admin-student-management admin-section-card admin-password-card">
       <div className="search-section-heading">
+        <p className="admin-eyebrow">ACCOUNT SECURITY</p>
         <h2>Change Password</h2>
         <span>Choose at least 8 characters with uppercase, number, and symbol.</span>
       </div>
@@ -56,7 +57,9 @@ const AdminChangePassword = () => {
             required
           />
         </label>
-        <div><button type="submit">Change password</button></div>
+        <div className="admin-form-actions">
+          <button type="submit" className="admin-primary-button">Change password</button>
+        </div>
       </form>
     </section>
   );
