@@ -33,6 +33,14 @@ const StudentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth > 960);
+  const campusImageUrl = "";
+  const campusBannerStyle = campusImageUrl
+    ? {
+        backgroundImage: `linear-gradient(135deg, rgba(15, 86, 54, 0.78), rgba(18, 130, 77, 0.3)), url(${campusImageUrl})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }
+    : {};
 
   useEffect(() => {
     const storedStudent = getStoredStudent();
@@ -87,8 +95,18 @@ const StudentDashboard = () => {
       </nav>
       <div className="student-dashboard-content">
         <header className="student-welcome-section">
-          <div><span className="student-dashboard-badge"><FaUserGraduate />Student Dashboard</span><h1>Welcome back, {student?.name || "Student"}</h1><p>Review your academic details, progress, support status, and latest updates in one place.</p></div>
-          <div className="student-welcome-icon" aria-hidden="true"><FaUserGraduate /></div>
+          <div className="student-welcome-copy">
+            <span className="student-dashboard-badge"><FaUserGraduate />Student Dashboard</span>
+            <h1>Welcome back, {student?.name || "Student"}</h1>
+            <p>Review your academic details, progress, support status, and latest updates in one place.</p>
+          </div>
+          <div className={`student-welcome-visual ${campusImageUrl ? "has-photo" : ""}`} style={campusBannerStyle} aria-label="UTAS Muscat campus banner">
+            {!campusImageUrl && (
+              <div className="student-campus-banner-note">
+                <span>UTAS Muscat campus photo pending approval</span>
+              </div>
+            )}
+          </div>
           {student && <StudentProfileSummary student={student} displayValue={displayValue} />}
         </header>
         {error && <p className="student-message error" role="alert">{error}</p>}

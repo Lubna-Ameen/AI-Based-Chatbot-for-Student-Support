@@ -99,11 +99,16 @@
 .student-account-copy { display: grid; min-width: 90px; line-height: 1.2; }
 .student-account-copy strong { color: #173c2a; font-size: .9rem; }
 .student-account-copy span { color: #71877b; font-size: .74rem; }
-.student-welcome-section { grid-template-columns: 1fr auto; padding: clamp(1.5rem, 3vw, 2.6rem); border: 1px solid rgba(18,130,77,.12); color: #173c2a; background: linear-gradient(105deg, rgba(239,250,244,.96), rgba(255,255,255,.95) 58%, rgba(218,241,228,.9)); box-shadow: 0 16px 40px rgba(17,84,50,.07); }
+.student-welcome-section { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(200px, 320px); align-items: stretch; gap: 1.3rem; padding: clamp(1.5rem, 3vw, 2.6rem); border: 1px solid rgba(18,130,77,.12); color: #173c2a; background: linear-gradient(105deg, rgba(239,250,244,.96), rgba(255,255,255,.95) 58%, rgba(218,241,228,.9)); box-shadow: 0 16px 40px rgba(17,84,50,.07); }
+.student-welcome-copy { display: flex; flex-direction: column; justify-content: center; }
 .student-welcome-section h1 { color: #103d29; font-size: clamp(2.2rem, 4vw, 3.8rem); letter-spacing: -.04em; }
 .student-welcome-section p { color: #5e786b; font-size: 1.05rem; }
 .student-dashboard-badge { color: #2c6550; background: rgba(255,255,255,.75); }
 .student-welcome-icon { color: #168952; background: rgba(255,255,255,.74); box-shadow: inset 0 0 0 1px rgba(18,130,77,.09); }
+.student-welcome-visual { position: relative; display: flex; align-items: end; justify-content: flex-start; min-height: 220px; border-radius: 22px; border: 1px solid rgba(255,255,255,.38); background: linear-gradient(135deg, #0d5f3d, #2da56a 55%, #8ee0b0); overflow: hidden; }
+.student-welcome-visual::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(7,43,28,.38)); }
+.student-welcome-visual.has-photo { box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); }
+.student-campus-banner-note { position: relative; z-index: 1; display: inline-flex; max-width: 90%; margin: 1rem; padding: .65rem .9rem; border-radius: 999px; border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.18); color: #fff; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; backdrop-filter: blur(4px); }
 .student-welcome-section > .student-dashboard-section { margin-top: .25rem; border-color: rgba(18,130,77,.1); background: rgba(255,255,255,.78); box-shadow: none; }
 .student-overview-grid { gap: 1.15rem; }
 .student-overview-card { min-height: 142px; padding: 1.35rem; border-radius: 22px; background: rgba(255,255,255,.92); box-shadow: 0 14px 34px rgba(17,84,50,.065); }
@@ -122,8 +127,8 @@
 .student-sidebar-header { min-height: 82px; }
 .student-sidebar-title { padding-top: 1.35rem; }
 .student-sidebar-navigation { gap: .3rem; }
-.student-sidebar-navigation a { min-height: 50px; border-radius: 13px; }
-.student-sidebar-navigation a:first-child { color: #0c7541; background: linear-gradient(90deg, #dff4e6, #edf9f1); }
+.student-sidebar-navigation a { min-height: 50px; border-radius: 13px; transition: all .2s ease; }
+.student-sidebar-navigation a.is-active { color: #0c7541; background: linear-gradient(90deg, #dff4e6, #edf9f1); box-shadow: inset 0 0 0 1px rgba(18,130,77,.08); }
 .student-sidebar-logout { margin-top: 1.25rem; }
 
 @media (max-width: 1100px) and (min-width: 961px) {
@@ -145,7 +150,8 @@
   .student-brand-button { max-width: calc(100vw - 190px); }
   .student-navbar-account { gap: .45rem; }
   .student-notification-button, .student-account-avatar { width: 38px; height: 38px; }
-  .student-welcome-section { padding: 1.25rem; border-radius: 20px; }
+  .student-welcome-section { grid-template-columns: 1fr; padding: 1.25rem; border-radius: 20px; }
+  .student-welcome-visual { min-height: 180px; }
   .student-welcome-section h1 { font-size: 2rem; }
   .student-welcome-section > .student-dashboard-section { padding: 1rem; }
   .student-overview-card { min-height: 118px; }

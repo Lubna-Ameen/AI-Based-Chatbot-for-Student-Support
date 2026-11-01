@@ -11,7 +11,7 @@ import {
   FaTimes,
   FaUserGraduate,
 } from "react-icons/fa";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import BrandLogo from "../BrandLogo";
 
 const navigation = [
@@ -27,31 +27,42 @@ const navigation = [
   { label: "Academic Support", to: "/contact", icon: <FaBookOpen /> },
 ];
 
-const StudentSidebar = ({ isOpen, onClose, onLogout }) => (
-  <>
-    <button
-      type="button"
-      className={`student-sidebar-overlay ${isOpen ? "is-visible" : ""}`}
-      onClick={onClose}
-      aria-label="Close student portal menu"
-      tabIndex={isOpen ? 0 : -1}
-    />
-    <aside className={`student-sidebar ${isOpen ? "is-open" : ""}`} aria-hidden={!isOpen}>
-      <div className="student-sidebar-header">
-        <BrandLogo variant="full" size="nav" />
-        <button type="button" className="student-sidebar-close" onClick={onClose} aria-label="Close menu"><FaTimes /></button>
-      </div>
-      <div className="student-sidebar-title"><span>Student Portal</span><small>Academic services</small></div>
-      <nav className="student-sidebar-navigation" aria-label="Student portal navigation">
-        {navigation.map((item) => item.to ? (
-          <Link key={item.label} to={item.to} onClick={onClose}>{item.icon}<span>{item.label}</span></Link>
-        ) : (
-          <a key={item.label} href={item.href} onClick={onClose}>{item.icon}<span>{item.label}</span></a>
-        ))}
-      </nav>
-      <button type="button" className="student-sidebar-logout" onClick={onLogout}><FaSignOutAlt /><span>Logout</span></button>
-    </aside>
-  </>
-);
+const StudentSidebar = ({ isOpen, onClose, onLogout }) => {
+  const location = useLocation();
+  const currentPath = `${location.pathname}${location.hash}`;
+
+  return (
+    <>
+      <button
+        type="button"
+        className={`student-sidebar-overlay ${isOpen ? "is-visible" : ""}`}
+        onClick={onClose}
+        aria-label="Close student portal menu"
+        tabIndex={isOpen ? 0 : -1}
+      />
+      <aside className={`student-sidebar ${isOpen ? "is-open" : ""}`} aria-hidden={!isOpen}>
+        <div className="student-sidebar-header">
+          <BrandLogo variant="full" size="nav" />
+          <button type="button" className="student-sidebar-close" onClick={onClose} aria-label="Close menu"><FaTimes /></button>
+        </div>
+        <div className="student-sidebar-title"><span>Student Portal</span><small>Academic services</small></div>
+        <nav className="student-sidebar-navigation" aria-label="Student portal navigation">
+          {navigation.map((item) => {
+            const href = item.to || item.href;
+            const isActive = href === currentPath || (href === "/student/dashboard" && currentPath === "/student/dashboard") || (href === "#dashboard" && currentPath === "/student/dashboard");
+            const className = isActive ? "student-sidebar-link is-active" : "student-sidebar-link";
+
+            return item.to ? (
+              <Link key={item.label} to={item.to} onClick={onClose} className={className}>{item.icon}<span>{item.label}</span></Link>
+            ) : (
+              <a key={item.label} href={item.href} onClick={onClose} className={className}>{item.icon}<span>{item.label}</span></a>
+            );
+          })}
+        </nav>
+        <button type="button" className="student-sidebar-logout" onClick={onLogout}><FaSignOutAlt /><span>Logout</span></button>
+      </aside>
+    </>
+  );
+};
 
 export default StudentSidebar;
