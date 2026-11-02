@@ -14,6 +14,8 @@ const {
   AdminPasswordResetModel,
   AcademicRecordModel,
   AcademicAuditModel,
+  AcademicSupportRequestModel,
+  NotificationModel,
 } = require("./index");
 
 const originalEnv = { ...process.env };
@@ -75,6 +77,289 @@ describe("server API", () => {
     expect(saveSpy.mock.instances[0].role).toBe("student");
     expect(saveSpy.mock.instances[0].department).toBe("Engineering");
     expect(otpSpy).not.toHaveBeenCalled();
+  });
+
+  test("student profile update API updates only the authenticated student record", async () => {
+    const student = {
+      _id: "student-profile-id",
+      email: "profile-student@example.com",
+      name: "Existing Student",
+      phoneNumber: "",
+      department: "Engineering",
+      program: "Computer Science",
+      academicYear: "2026",
+    };
+
+    jest.spyOn(UserModel, "findOne").mockResolvedValue(student);
+    jest.spyOn(UserModel, "findOneAndUpdate").mockResolvedValue({
+      ...student,
+      name: "Updated Student",
+      phoneNumber: "5551234567",
+    });
+
+    const response = await request(app).put("/student/profile").send({
+      email: "profile-student@example.com",
+      name: "Updated Student",
+      phoneNumber: "5551234567",
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.user.name).toBe("Updated Student");
+    expect(response.body.user.phoneNumber).toBe("5551234567");
+    expect(UserModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: student._id, email: "profile-student@example.com" },
+      { $set: { name: "Updated Student", phoneNumber: "5551234567" } },
+      { new: true, runValidators: true }
+    );
+  });
+
+  test("student academic progress API returns verified academic metrics", async () => {
+    const student = {
+      _id: "student-progress-id",
+      email: "progress-student@example.com",
+      name: "Progress Student",
+      role: "student",
+      studentId: "STU-909",
+      program: "Computer Science",
+      academicYear: "2026",
+      department: "Engineering",
+      gpa: 3.42,
+    };
+
+    const academicRecord = {
+      _id: "record-progress-id",
+      studentId: "student-progress-id",
+      academicLevel: "Level 3",
+      verified: true,
+      studyPlanVerified: true,
+      studyPlan: [
+        { courseCode: "CS101", courseName: "Intro to Programming", creditHours: 3 },
+        { courseCode: "CS202", courseName: "Data Structures", creditHours: 3 },
+      ],
+      semesters: [
+        {
+          semester: "2025 Fall",
+          semesterGPA: 3.55,
+          cgpa: 3.42,
+          courses: [
+            { courseCode: "CS101", courseName: "Intro to Programming", creditHours: 3, status: "completed" },
+            { courseCode: "CS202", courseName: "Data Structures", creditHours: 3, status: "registered" },
+          ],
+        },
+      ],
+    };
+
+    jest.spyOn(UserModel, "findOne").mockResolvedValue(student);
+    jest.spyOn(AcademicRecordModel, "findOne").mockReturnValue({
+      lean: jest.fn().mockResolvedValue(academicRecord),
+    });
+
+    const response = await request(app).get("/student/academic-progress").query({ email: "progress-student@example.com" });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.progress.available).toBe(true);
+    expect(response.body.progress.academicLevel).toBe("Level 3");
+    expect(response.body.progress.completedCredits).toBe(3);
+    expect(response.body.progress.remainingCourses).toBe(1);
+    expect(response.body.progress.graduationProgress).toBe(50);
+  });
+
+  test("student support requests can be submitted and retrieved", async () => {
+    const student = {
+      _id: "support-student-id",
+      email: "support-student@example.com",
+      name: "Support Student",
+      role: "student",
+      studentId: "STU-001",
+    };
+
+    const createdRequest = {
+      _id: "request-123",
+      studentEmail: "support-student@example.com",
+      studentName: "Support Student",
+      studentId: "STU-001",
+      category: "Course Registration",
+      subject: "Add drop request",
+      priority: "Medium",
+      preferredContact: "Email",
+      message: "I need guidance on the registration form for the next semester.",
+      status: "New",
+      createdAt: new Date().toISOString(),
+    };
+
+    jest.spyOn(UserModel, "findOne").mockReturnValue({
+      select: jest.fn().mockResolvedValue(student),
+    });
+    jest.spyOn(AcademicSupportRequestModel, "create").mockResolvedValue({ toObject: () => createdRequest });
+    jest.spyOn(AcademicSupportRequestModel, "find").mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([createdRequest]),
+    });
+
+    const submitResponse = await request(app).post("/student/support-requests").send({
+      email: "support-student@example.com",
+      category: "Course Registration",
+      subject: "Add drop request",
+      priority: "Medium",
+      preferredContact: "Email",
+      message: "I need guidance on the registration form for the next semester.",
+    });
+
+    const listResponse = await request(app).get("/student/support-requests").query({ email: "support-student@example.com" });
+
+    expect(submitResponse.status).toBe(201);
+    expect(submitResponse.body.success).toBe(true);
+    expect(submitResponse.body.message).toMatch(/submitted successfully/i);
+    expect(listResponse.status).toBe(200);
+    expect(listResponse.body.requests[0].category).toBe("Course Registration");
+  });
+
+  test("admin support status changes create a notification and the student can retrieve it", async () => {
+    const studentEmail = "notification-student@example.com";
+    const createdNotification = {
+      _id: "notification-123",
+      studentEmail,
+      studentId: "STU-1001",
+      title: "Support request resolved",
+      message: 'Your support request "Register for next semester" is now Resolved.',
+      subject: "Register for next semester",
+      status: "Resolved",
+      relatedRequestId: "request-999",
+      isRead: false,
+      createdAt: new Date().toISOString(),
+      readAt: null,
+    };
+
+    const existingSupportRequest = {
+      _id: "request-999",
+      studentEmail,
+      studentId: "STU-1001",
+      studentName: "Notification Student",
+      subject: "Register for next semester",
+      status: "In Progress",
+    };
+
+    jest.spyOn(AcademicSupportRequestModel, "findById").mockResolvedValue(existingSupportRequest);
+    jest.spyOn(AcademicSupportRequestModel, "findByIdAndUpdate").mockResolvedValue({
+      ...existingSupportRequest,
+      status: "Resolved",
+      adminNotes: "Approved by advisor.",
+      updatedAt: new Date().toISOString(),
+      toObject: () => ({
+        ...existingSupportRequest,
+        status: "Resolved",
+        adminNotes: "Approved by advisor.",
+        updatedAt: new Date().toISOString(),
+      }),
+    });
+    jest.spyOn(NotificationModel, "findOne").mockResolvedValue(null);
+    jest.spyOn(NotificationModel, "create").mockResolvedValue(createdNotification);
+    jest.spyOn(NotificationModel, "find").mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([createdNotification]),
+    });
+    jest.spyOn(UserModel, "findOne").mockResolvedValue({
+      _id: "student-1001",
+      email: studentEmail,
+      role: "student",
+      studentId: "STU-1001",
+    });
+
+    mockAuthenticatedAdmin();
+    const statusResponse = await authenticateAdminRequest(
+      request(app).put("/admin/support-requests/request-999/status").set("X-CSRF-Token", adminCsrfToken),
+      true,
+    ).send({
+      status: "Resolved",
+      adminNotes: "Approved by advisor.",
+    });
+
+    const listResponse = await request(app).get("/student/notifications").query({ email: studentEmail });
+
+    expect(statusResponse.status).toBe(200);
+    expect(NotificationModel.create).toHaveBeenCalledWith(expect.objectContaining({
+      studentEmail,
+      subject: "Register for next semester",
+      status: "Resolved",
+      relatedRequestId: "request-999",
+      isRead: false,
+    }));
+    expect(listResponse.status).toBe(200);
+    expect(listResponse.body.notifications).toHaveLength(1);
+    expect(listResponse.body.notifications[0].status).toBe("Resolved");
+  });
+
+  test("student chatbot answers CGPA and credit questions from the authenticated student record", async () => {
+    const student = {
+      _id: "chatbot-student-id",
+      email: "chatbot-student@example.com",
+      name: "Chatbot Student",
+      role: "student",
+      gpa: 3.84,
+      program: "Computer Science",
+      academicYear: "2026",
+      department: "Engineering",
+    };
+
+    const academicRecord = {
+      studentId: "chatbot-student-id",
+      academicLevel: "Level 3",
+      semesters: [
+        { semester: "Semester 1", semesterGPA: 3.7, cgpa: 3.7, courses: [{ courseCode: "CS101", creditHours: 3, status: "completed" }, { courseCode: "CS102", creditHours: 4, status: "completed" }] },
+        { semester: "Semester 2", semesterGPA: 3.9, cgpa: 3.84, courses: [{ courseCode: "CS201", creditHours: 3, status: "completed" }, { courseCode: "CS202", creditHours: 4, status: "completed" }] },
+      ],
+      studyPlan: [{ courseCode: "CS301", courseName: "Algorithms" }, { courseCode: "CS302", courseName: "Operating Systems" }],
+    };
+
+    jest.spyOn(UserModel, "findOne").mockResolvedValue(student);
+    jest.spyOn(AcademicRecordModel, "findOne").mockResolvedValue(academicRecord);
+
+    const cgpaResponse = await request(app).post("/student/chatbot").send({
+      email: "chatbot-student@example.com",
+      question: "What is my current CGPA?",
+    });
+
+    const creditsResponse = await request(app).post("/student/chatbot").send({
+      email: "chatbot-student@example.com",
+      question: "How many credits have I completed?",
+    });
+
+    const remainingResponse = await request(app).post("/student/chatbot").send({
+      email: "chatbot-student@example.com",
+      question: "What courses do I have remaining?",
+    });
+
+    expect(cgpaResponse.status).toBe(200);
+    expect(cgpaResponse.body.answer).toContain("3.84");
+    expect(creditsResponse.status).toBe(200);
+    expect(creditsResponse.body.answer).toContain("14");
+    expect(remainingResponse.status).toBe(200);
+    expect(remainingResponse.body.answer).toContain("CS301");
+    expect(remainingResponse.body.answer).toContain("CS302");
+  });
+
+  test("student chatbot reports missing data rather than inventing academic answers", async () => {
+    const student = {
+      _id: "missing-data-student-id",
+      email: "missing-data@example.com",
+      name: "Missing Data Student",
+      role: "student",
+      program: "Computer Science",
+      department: "Engineering",
+    };
+
+    jest.spyOn(UserModel, "findOne").mockResolvedValue(student);
+    jest.spyOn(AcademicRecordModel, "findOne").mockResolvedValue(null);
+
+    const response = await request(app).post("/student/chatbot").send({
+      email: "missing-data@example.com",
+      question: "What is my semester GPA?",
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.answer).toMatch(/semester GPA is not available/i);
   });
 
   test("register API requires a supported student department", async () => {

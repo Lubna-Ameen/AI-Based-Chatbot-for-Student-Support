@@ -40,8 +40,11 @@ app.use(cors({
 app.use(express.json());
 /* Utility functions for database connection, email sending, and other operations.
  These include enhanced logging for easier debugging of issues. */
-const hasMeaningfulEnvValue = (value) =>
-  Boolean(value && !["your_email@gmail.com", "your_app_password"].includes(value));
+const hasMeaningfulEnvValue = (value) => {
+  if (!value || typeof value !== "string") return false;
+  const trimmed = value.trim();
+  return Boolean(trimmed && !["your_email@gmail.com", "your_app_password"].includes(trimmed) && !/\s/.test(trimmed));
+};
 
 const logEmailEnvStatus = (source) => {
   console.log(`[env:${source}] dotenv path: ${envPath}`);
@@ -205,6 +208,48 @@ const academicWarningSchema = new mongoose.Schema({
   issuedAt: { type: Date, default: Date.now },
   status: { type: String, enum: ["active", "resolved"], default: "active" },
 });
+const academicSupportRequestSchema = new mongoose.Schema({
+  studentEmail: { type: String, required: true, lowercase: true, trim: true },
+  studentName: { type: String, required: true, trim: true, maxlength: 120 },
+  studentId: { type: String, default: "", trim: true, maxlength: 80 },
+  category: {
+    type: String,
+    required: true,
+    enum: [
+      "Course Registration",
+      "GPA / Academic Performance",
+      "Course Prerequisites",
+      "Academic Progress / Graduation",
+      "Attendance / Absence",
+      "General Academic Advice",
+      "Other Academic Issues",
+    ],
+  },
+  subject: { type: String, required: true, trim: true, maxlength: 140 },
+  priority: { type: String, enum: ["Low", "Medium", "High"], default: "Medium" },
+  preferredContact: { type: String, enum: ["Email", "Portal message", "Phone"], default: "Email" },
+  message: { type: String, required: true, trim: true, maxlength: 2000 },
+  status: {
+    type: String,
+    enum: ["New", "In Progress", "Waiting for Student", "Resolved"],
+    default: "New",
+  },
+  adminNotes: { type: String, default: "", trim: true, maxlength: 1500 },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+const notificationSchema = new mongoose.Schema({
+  studentEmail: { type: String, required: true, lowercase: true, trim: true },
+  studentId: { type: String, default: "", trim: true, maxlength: 80 },
+  title: { type: String, required: true, trim: true, maxlength: 160 },
+  message: { type: String, required: true, trim: true, maxlength: 500 },
+  subject: { type: String, default: "", trim: true, maxlength: 140 },
+  status: { type: String, default: "", trim: true, maxlength: 60 },
+  relatedRequestId: { type: mongoose.Schema.Types.ObjectId, ref: "academic_support_requests", default: null },
+  isRead: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now },
+  readAt: { type: Date, default: null },
+});
 const academicRecordSchema = new mongoose.Schema({
   studentId: { type: mongoose.Schema.Types.ObjectId, ref: "users", required: true, unique: true },
   academicLevel: { type: String, default: "", trim: true, maxlength: 80 },
@@ -238,6 +283,84 @@ const AcademicRecordModel =
   mongoose.models.academic_records || mongoose.model("academic_records", academicRecordSchema);
 const AcademicAuditModel =
   mongoose.models.academic_audits || mongoose.model("academic_audits", academicAuditSchema);
+const AcademicSupportRequestModel =
+  mongoose.models.academic_support_requests || mongoose.model("academic_support_requests", academicSupportRequestSchema);
+const NotificationModel =
+  mongoose.models.student_notifications || mongoose.model("student_notifications", notificationSchema);
+
+const getStudentNotificationEmail = (req) => {
+  const candidates = [
+    req?.user?.email,
+    req?.body?.email,
+    req?.body?.studentEmail,
+    req?.query?.email,
+    req?.headers?.["x-student-email"],
+    req?.headers?.["x-user-email"],
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeIdentifier(candidate);
+    if (normalized) return normalized;
+  }
+
+  return "";
+};
+
+const loadStudentProfile = async (email) => {
+  const normalizedEmail = normalizeIdentifier(email);
+  if (!normalizedEmail) return null;
+
+  const studentLookup = UserModel.findOne({ email: normalizedEmail, role: { $ne: "admin" } });
+  if (studentLookup && typeof studentLookup.select === "function") {
+    return studentLookup.select("_id email studentId name").lean();
+  }
+
+  return studentLookup;
+};
+
+const ensureStudentNotificationRecord = async (request, status) => {
+  if (!request || !request._id) return null;
+
+  const studentEmail = normalizeIdentifier(request.studentEmail || "");
+  if (!studentEmail) return null;
+
+  const existingNotificationLookup = NotificationModel.findOne({
+    relatedRequestId: request._id,
+    studentEmail,
+  });
+  const existingNotification = existingNotificationLookup && typeof existingNotificationLookup.lean === "function"
+    ? await existingNotificationLookup.lean()
+    : await existingNotificationLookup;
+
+  if (existingNotification && existingNotification.status === status) {
+    return existingNotification;
+  }
+
+  const studentProfile = await loadStudentProfile(studentEmail);
+
+  const nextNotification = {
+    studentEmail,
+    studentId: studentProfile?.studentId || request.studentId || "",
+    title: `Support request ${status === "Resolved" ? "resolved" : "updated"}`,
+    message: `Your support request "${request.subject || "Academic support request"}" is now ${status}.`,
+    subject: request.subject || "Academic support request",
+    status,
+    relatedRequestId: request._id,
+    isRead: false,
+    createdAt: new Date(),
+    readAt: null,
+  };
+
+  if (existingNotification) {
+    return NotificationModel.findOneAndUpdate(
+      { _id: existingNotification._id },
+      { $set: nextNotification },
+      { new: true, runValidators: true }
+    );
+  }
+
+  return NotificationModel.create(nextNotification);
+};
 
 const ADMIN_IDENTITIES = [
   { email: "admin@studentsupport.ai", passwordHashEnv: "ADMIN_1_PASSWORD_HASH" },
@@ -569,6 +692,347 @@ app.get("/getUsers", async (req, res) => {
   }
 });
 
+app.put("/student/profile", async (req, res) => {
+  try {
+    if (!isDatabaseConnected()) {
+      return res.status(503).send({ success: false, message: "Database not connected" });
+    }
+
+    const protectedKeys = new Set([
+      "_id",
+      "studentId",
+      "role",
+      "email",
+      "department",
+      "program",
+      "academicYear",
+      "gpa",
+      "riskStatus",
+      "aiPrediction",
+      "alerts",
+      "recommendations",
+      "password",
+      "isVerified",
+      "verified",
+      "createdAt",
+    ]);
+
+    const disallowedUpdates = Object.keys(req.body || {}).filter((key) => protectedKeys.has(key) && key !== "email");
+    if (disallowedUpdates.length) {
+      return res.status(400).send({
+        success: false,
+        message: `Protected student fields cannot be updated: ${disallowedUpdates.join(", ")}`,
+      });
+    }
+
+    const email = normalizeIdentifier(req.body?.email || req.body?.studentEmail);
+    if (!email) {
+      return res.status(400).send({ success: false, message: "Student email is required" });
+    }
+
+    const name = String(req.body?.name ?? "").trim();
+    const phoneNumber = String(req.body?.phoneNumber ?? "").trim();
+    const hasNameUpdate = Object.prototype.hasOwnProperty.call(req.body || {}, "name");
+    const hasPhoneUpdate = Object.prototype.hasOwnProperty.call(req.body || {}, "phoneNumber");
+
+    if (!hasNameUpdate && !hasPhoneUpdate) {
+      return res.status(400).send({ success: false, message: "No profile fields were provided" });
+    }
+
+    if (hasNameUpdate && (!name || name.length > 100)) {
+      return res.status(400).send({ success: false, message: "Name must be provided and must be 100 characters or fewer" });
+    }
+
+    if (hasPhoneUpdate && phoneNumber && !/^\+?[0-9()\-\s]{7,20}$/.test(phoneNumber)) {
+      return res.status(400).send({ success: false, message: "Phone number format is invalid" });
+    }
+
+    const existingUser = await UserModel.findOne({ email });
+    if (!existingUser) {
+      return res.status(404).send({ success: false, message: "Student account not found" });
+    }
+
+    const updates = {};
+    if (hasNameUpdate) updates.name = name;
+    if (hasPhoneUpdate) updates.phoneNumber = phoneNumber;
+
+    const user = await UserModel.findOneAndUpdate(
+      { _id: existingUser._id, email },
+      { $set: updates },
+      { new: true, runValidators: true }
+    );
+
+    if (!user) {
+      return res.status(404).send({ success: false, message: "Student record could not be updated" });
+    }
+
+    const safeUser = user.toObject ? user.toObject() : { ...user };
+    delete safeUser.password;
+
+    return res.send({
+      success: true,
+      message: "Profile updated successfully",
+      user: {
+        _id: safeUser._id,
+        name: safeUser.name,
+        email: safeUser.email,
+        studentId: safeUser.studentId,
+        phoneNumber: safeUser.phoneNumber,
+        program: safeUser.program,
+        academicYear: safeUser.academicYear,
+        department: safeUser.department,
+      },
+    });
+  } catch (error) {
+    const detail = error?.message || "Unknown server error";
+    console.error(`[student-profile] Update failed (${error.name || "Error"}): ${detail}`);
+    return res.status(500).send({ success: false, message: `Unable to update profile: ${detail}` });
+  }
+});
+
+app.get("/student/academic-progress", async (req, res) => {
+  try {
+    if (!isDatabaseConnected()) {
+      return res.status(503).send({ success: false, message: "Database not connected" });
+    }
+
+    const email = normalizeIdentifier(req.query?.email || req.body?.email || req.headers?.["x-student-email"] || req.headers?.["x-user-email"] || "");
+    if (!email) {
+      return res.status(400).send({ success: false, message: "Student email is required" });
+    }
+
+    const studentDocument = await UserModel.findOne({ email, role: { $ne: "admin" } });
+    const student = await toPlainObject(studentDocument);
+    if (!student) {
+      return res.status(404).send({ success: false, message: "Student account not found" });
+    }
+
+    const academicRecordDocument = await AcademicRecordModel.findOne({ studentId: student._id });
+    const academicRecord = await toPlainObject(academicRecordDocument);
+    const progress = getAcademicProgressSummary(student, academicRecord);
+
+    return res.send({
+      success: true,
+      progress,
+      student: {
+        _id: student._id,
+        name: student.name,
+        email: student.email,
+        program: student.program,
+        academicYear: student.academicYear,
+        department: student.department,
+      },
+    });
+  } catch (error) {
+    console.error(`[student-progress] Load failed (${error.name || "Error"}).`);
+    return res.status(500).send({ success: false, message: "Unable to load academic progress" });
+  }
+});
+
+app.get("/student/support-requests", async (req, res) => {
+  try {
+    if (!isDatabaseConnected()) {
+      return res.status(503).send({ success: false, message: "Database not connected" });
+    }
+
+    const email = normalizeIdentifier(req.query.email || req.body?.email || "");
+    if (!email) {
+      return res.status(400).send({ success: false, message: "Student email is required" });
+    }
+
+    const requests = await AcademicSupportRequestModel.find({ studentEmail: email }).sort({ createdAt: -1 }).lean();
+    return res.send({ success: true, requests });
+  } catch (error) {
+    console.error(`[student-support] Request lookup failed (${error.name || "Error"}).`);
+    return res.status(500).send({ success: false, message: "Unable to load support requests" });
+  }
+});
+
+app.post("/student/support-requests", async (req, res) => {
+  try {
+    if (!isDatabaseConnected()) {
+      return res.status(503).send({ success: false, message: "Database not connected" });
+    }
+
+    const email = normalizeIdentifier(req.body?.email || req.body?.studentEmail || "");
+    const category = String(req.body?.category || "").trim();
+    const subject = String(req.body?.subject || "").trim();
+    const message = String(req.body?.message || "").trim();
+    const priority = String(req.body?.priority || "Medium").trim();
+    const preferredContact = String(req.body?.preferredContact || "Email").trim();
+
+    if (!email) {
+      return res.status(400).send({ success: false, message: "Student email is required" });
+    }
+    if (!category) {
+      return res.status(400).send({ success: false, message: "Please select a support category" });
+    }
+    if (!subject || subject.length < 3) {
+      return res.status(400).send({ success: false, message: "Please provide a brief subject line" });
+    }
+    if (!message || message.length < 15) {
+      return res.status(400).send({ success: false, message: "Please add a clear explanation of the issue" });
+    }
+
+    const studentLookup = UserModel.findOne({ email, role: { $ne: "admin" } });
+    const student = studentLookup && typeof studentLookup.select === "function"
+      ? await studentLookup.select("_id name studentId email")
+      : await studentLookup;
+
+    if (!student) {
+      return res.status(404).send({ success: false, message: "Student account not found" });
+    }
+
+    const request = await AcademicSupportRequestModel.create({
+      studentEmail: email,
+      studentName: student.name || "Student",
+      studentId: student.studentId || "",
+      category,
+      subject,
+      priority: ["Low", "Medium", "High"].includes(priority) ? priority : "Medium",
+      preferredContact: ["Email", "Portal message", "Phone"].includes(preferredContact) ? preferredContact : "Email",
+      message,
+      status: "New",
+      adminNotes: "",
+    });
+
+    return res.status(201).send({
+      success: true,
+      message: "Academic support request submitted successfully.",
+      request: request.toObject ? request.toObject() : request,
+    });
+  } catch (error) {
+    console.error(`[student-support] Request submission failed (${error.name || "Error"}).`);
+    return res.status(500).send({ success: false, message: "Unable to submit support request" });
+  }
+});
+
+app.get("/admin/support-requests", async (req, res) => {
+  try {
+    if (!isDatabaseConnected()) {
+      return res.status(503).send({ success: false, message: "Database not connected" });
+    }
+
+    const requests = await AcademicSupportRequestModel.find({}).sort({ createdAt: -1 }).lean();
+    return res.send({ success: true, requests });
+  } catch (error) {
+    console.error(`[admin-support] Request load failed (${error.name || "Error"}).`);
+    return res.status(500).send({ success: false, message: "Unable to load support requests" });
+  }
+});
+
+app.get("/student/notifications", async (req, res) => {
+  try {
+    if (!isDatabaseConnected()) {
+      return res.status(503).send({ success: false, message: "Database not connected" });
+    }
+
+    const email = getStudentNotificationEmail(req);
+    if (!email) {
+      return res.status(400).send({ success: false, message: "Student email is required" });
+    }
+
+    const studentRecord = await loadStudentProfile(email);
+    if (!studentRecord) {
+      return res.status(403).send({ success: false, message: "Access denied for this student account" });
+    }
+
+    const notifications = await NotificationModel.find({ studentEmail: email }).sort({ createdAt: -1 }).lean();
+    const unreadCount = notifications.filter((notification) => !notification.isRead).length;
+
+    return res.send({ success: true, notifications, unreadCount });
+  } catch (error) {
+    console.error(`[student-notifications] Load failed (${error.name || "Error"}).`);
+    return res.status(500).send({ success: false, message: "Unable to load notifications" });
+  }
+});
+
+app.patch("/student/notifications/:id/read", async (req, res) => {
+  try {
+    if (!isDatabaseConnected()) {
+      return res.status(503).send({ success: false, message: "Database not connected" });
+    }
+
+    const email = getStudentNotificationEmail(req);
+    const notificationId = req.params.id;
+
+    if (!email) {
+      return res.status(400).send({ success: false, message: "Student email is required" });
+    }
+
+    const studentRecord = await loadStudentProfile(email);
+    if (!studentRecord) {
+      return res.status(403).send({ success: false, message: "Access denied for this student account" });
+    }
+
+    const notification = await NotificationModel.findOneAndUpdate(
+      { _id: notificationId, studentEmail: email },
+      { $set: { isRead: true, readAt: new Date() } },
+      { new: true }
+    );
+
+    if (!notification) {
+      return res.status(404).send({ success: false, message: "Notification not found" });
+    }
+
+    return res.send({ success: true, message: "Notification marked as read.", notification: notification.toObject ? notification.toObject() : notification });
+  } catch (error) {
+    console.error(`[student-notifications] Mark-read failed (${error.name || "Error"}).`);
+    return res.status(500).send({ success: false, message: "Unable to mark notification as read" });
+  }
+});
+
+app.put("/admin/support-requests/:id/status", async (req, res) => {
+  try {
+    if (!isDatabaseConnected()) {
+      return res.status(503).send({ success: false, message: "Database not connected" });
+    }
+
+    const allowedStatuses = ["New", "In Progress", "Waiting for Student", "Resolved"];
+    const nextStatus = String(req.body?.status || "").trim();
+    const adminNotes = String(req.body?.adminNotes || "").trim();
+
+    if (!allowedStatuses.includes(nextStatus)) {
+      return res.status(400).send({ success: false, message: "Status is invalid" });
+    }
+
+    const existingRequestLookup = AcademicSupportRequestModel.findById(req.params.id);
+    const existingRequest = existingRequestLookup && typeof existingRequestLookup.lean === "function"
+      ? await existingRequestLookup.lean()
+      : await existingRequestLookup;
+
+    if (!existingRequest) {
+      return res.status(404).send({ success: false, message: "Support request not found" });
+    }
+
+    const updatedRequest = await AcademicSupportRequestModel.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: {
+          status: nextStatus,
+          adminNotes,
+          updatedAt: new Date(),
+        },
+      },
+      { new: true, runValidators: true }
+    );
+
+    const priorStatus = String(existingRequest.status || "").trim();
+    if (priorStatus !== nextStatus) {
+      const notification = await ensureStudentNotificationRecord(updatedRequest, nextStatus);
+      if (!notification) {
+        console.warn("[admin-support] No notification created for student support request update.");
+      }
+    }
+
+    return res.send({ success: true, message: "Support request updated.", request: updatedRequest.toObject ? updatedRequest.toObject() : updatedRequest });
+  } catch (error) {
+    console.error(`[admin-support] Status update failed (${error.name || "Error"}).`);
+    console.error(error);
+    return res.status(500).send({ success: false, message: "Unable to update support request status" });
+  }
+});
+
 const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
 const generateResetToken = () =>
   `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random()
@@ -600,6 +1064,19 @@ const createPasswordResetToken = async (email) => {
 const isEmailIdentifier = (identifier) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
 
 const normalizeIdentifier = (identifier) => String(identifier || "").trim().toLowerCase();
+
+const toPlainObject = async (document) => {
+  if (!document) {
+    return document;
+  }
+  if (typeof document.toObject === "function") {
+    return document.toObject();
+  }
+  if (typeof document.lean === "function") {
+    return document.lean();
+  }
+  return document;
+};
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -635,6 +1112,249 @@ const findStudentByIdentifier = (identifier) => {
   });
 };
 
+const getConfiguredAiProvider = () => {
+  const providerNames = [
+    "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "AZURE_OPENAI_API_KEY",
+    "OPENAI_API_BASE_URL",
+  ];
+
+  return providerNames.find((key) => Boolean(process.env[key] && String(process.env[key]).trim()));
+};
+
+const getLatestSemesterSnapshot = (academicRecord) => {
+  if (!academicRecord || !Array.isArray(academicRecord.semesters) || academicRecord.semesters.length === 0) {
+    return null;
+  }
+
+  return academicRecord.semesters[academicRecord.semesters.length - 1];
+};
+
+const getCompletedCredits = (student, academicRecord) => {
+  const explicitValue = student?.completedCredits ?? student?.creditsPassed ?? student?.credits ?? null;
+  if (explicitValue !== null && explicitValue !== undefined && explicitValue !== "") {
+    return Number(explicitValue) || null;
+  }
+
+  if (!academicRecord || !Array.isArray(academicRecord.semesters)) {
+    return null;
+  }
+
+  const total = academicRecord.semesters.reduce((sum, semester) => {
+    if (!Array.isArray(semester?.courses)) return sum;
+    const semesterCredits = semester.courses.reduce((courseTotal, course) => {
+      if (String(course?.status || "").toLowerCase() !== "completed") return courseTotal;
+      const creditHours = Number(course?.creditHours ?? 0);
+      return Number.isFinite(creditHours) ? courseTotal + creditHours : courseTotal;
+    }, 0);
+    return sum + semesterCredits;
+  }, 0);
+
+  return total > 0 ? total : null;
+};
+
+const getAcademicProgressSummary = (student, academicRecord) => {
+  const semesters = Array.isArray(academicRecord?.semesters) ? academicRecord.semesters : [];
+  const latestSemester = getLatestSemesterSnapshot(academicRecord);
+  const completedCredits = getCompletedCredits(student, academicRecord);
+  const currentCgpa = student?.gpa ?? latestSemester?.cgpa ?? null;
+  const semesterGpa = latestSemester?.semesterGPA ?? null;
+  const academicLevel = academicRecord?.academicLevel || student?.academicLevel || student?.currentAcademicLevel || null;
+  const studyPlan = Array.isArray(academicRecord?.studyPlan)
+    ? academicRecord.studyPlan.filter((course) => course && (course.courseName || course.courseCode))
+    : [];
+  const studyPlanVerified = Boolean(academicRecord?.studyPlanVerified && studyPlan.length > 0);
+  const plannedCredits = studyPlanVerified
+    ? studyPlan.reduce((total, course) => total + (Number(course?.creditHours) || 0), 0)
+    : 0;
+  const completedCodes = new Set(
+    semesters.flatMap((semester) => (Array.isArray(semester?.courses) ? semester.courses : [])
+      .filter((course) => String(course?.status || "").toLowerCase() === "completed")
+      .map((course) => String(course?.courseCode || "").trim().toUpperCase())
+      .filter(Boolean))
+  );
+  const remainingStudyCourses = studyPlanVerified
+    ? studyPlan.filter((course) => !completedCodes.has(String(course?.courseCode || "").trim().toUpperCase()))
+    : [];
+  const graduationProgress = studyPlanVerified && plannedCredits > 0 && completedCredits !== null && !Number.isNaN(Number(completedCredits))
+    ? Math.min(100, Math.max(0, Math.round((Number(completedCredits) / plannedCredits) * 100)))
+    : null;
+  const remainingCredits = studyPlanVerified && plannedCredits > 0 && completedCredits !== null && !Number.isNaN(Number(completedCredits))
+    ? Math.max(plannedCredits - Number(completedCredits), 0)
+    : null;
+  const completedCourseCount = semesters.reduce((count, semester) => {
+    if (!Array.isArray(semester?.courses)) return count;
+    return count + semester.courses.filter((course) => String(course?.status || "").toLowerCase() === "completed").length;
+  }, 0);
+  const milestones = [
+    { label: "Foundation / Entry", status: academicLevel && /foundation|entry/i.test(academicLevel) ? "current" : "completed" },
+    { label: "Diploma", status: academicLevel && /diploma/i.test(academicLevel) ? "current" : (academicLevel ? "completed" : "upcoming") },
+    { label: "Advanced Diploma", status: academicLevel && /advanced|advanceddiploma/i.test(academicLevel) ? "current" : "upcoming" },
+    { label: "Bachelor", status: academicLevel && /bachelor|degree/i.test(academicLevel) ? "current" : "upcoming" },
+    { label: "Graduation", status: graduationProgress !== null && graduationProgress >= 100 ? "current" : "upcoming" },
+  ];
+
+  const hasProgressSignals = Boolean(
+    academicRecord ||
+    currentCgpa !== null ||
+    semesterGpa !== null ||
+    completedCredits !== null ||
+    studyPlan.length > 0 ||
+    academicLevel
+  );
+
+  return {
+    available: Boolean(hasProgressSignals && (academicRecord?.verified || studyPlanVerified || academicLevel || completedCredits !== null || currentCgpa !== null)),
+    academicLevel: academicLevel || "Not available",
+    currentCgpa: currentCgpa !== null && currentCgpa !== undefined && !Number.isNaN(Number(currentCgpa))
+      ? Number(currentCgpa)
+      : null,
+    semesterGpa: semesterGpa !== null && semesterGpa !== undefined && !Number.isNaN(Number(semesterGpa))
+      ? Number(semesterGpa)
+      : null,
+    completedCredits: completedCredits !== null && completedCredits !== undefined && !Number.isNaN(Number(completedCredits))
+      ? Number(completedCredits)
+      : null,
+    completedCourses: completedCourseCount || null,
+    remainingCourses: studyPlanVerified ? remainingStudyCourses.length : null,
+    totalRequiredCredits: studyPlanVerified && plannedCredits > 0 ? plannedCredits : null,
+    remainingCredits,
+    graduationProgress,
+    studyPlanVerified,
+    studyPlan,
+    milestones,
+  };
+};
+
+const buildStudentAcademicAnswer = (student, academicRecord, question) => {
+  const normalizedQuestion = String(question || "").trim().toLowerCase();
+  const latestSemester = getLatestSemesterSnapshot(academicRecord);
+  const cgpa = student?.gpa ?? latestSemester?.cgpa ?? null;
+  const semesterGpa = latestSemester?.semesterGPA ?? null;
+  const completedCredits = getCompletedCredits(student, academicRecord);
+  const remainingCourses = Array.isArray(academicRecord?.studyPlan)
+    ? academicRecord.studyPlan.filter((course) => course && (course.courseName || course.courseCode))
+    : [];
+  const academicLevel = academicRecord?.academicLevel || student?.academicLevel || student?.currentAcademicLevel || null;
+
+  if (!normalizedQuestion) {
+    return "Please enter a question about your academic record.";
+  }
+
+  if (/cgpa|current gpa|cumulative gpa|overall gpa/i.test(question)) {
+    if (cgpa !== null && cgpa !== undefined && !Number.isNaN(Number(cgpa))) {
+      return `Your current CGPA is ${Number(cgpa).toFixed(2)}.`;
+    }
+    return "Current CGPA is not available in the student record yet.";
+  }
+
+  if (/semester gpa|this semester.*gpa|gpa.*semester/i.test(question)) {
+    if (semesterGpa !== null && semesterGpa !== undefined && !Number.isNaN(Number(semesterGpa))) {
+      return `Your semester GPA is ${Number(semesterGpa).toFixed(2)}.`;
+    }
+    return "Semester GPA is not available in the current academic record.";
+  }
+
+  if (/credits.*completed|completed.*credits|credits passed|credits completed|how many credits/i.test(question)) {
+    if (completedCredits !== null && completedCredits !== undefined && !Number.isNaN(Number(completedCredits))) {
+      return `You have completed ${Number(completedCredits)} credits.`;
+    }
+    return "Completed credit data is not available yet in your academic record.";
+  }
+
+  if (/remaining course|courses remaining|what courses.*remaining|remaining.*courses/i.test(question)) {
+    if (remainingCourses.length > 0) {
+      const items = remainingCourses
+        .map((course) => course.courseCode && course.courseName ? `${course.courseCode} - ${course.courseName}` : (course.courseName || course.courseCode || "Course"))
+        .join("; ");
+      return `Your remaining courses recorded in the study plan are: ${items}.`;
+    }
+    return "Remaining course data is not available in the current academic record.";
+  }
+
+  if (/eligible|next academic level|move to the next academic level|academic standing|academic level/i.test(question)) {
+    const summary = cgpa !== null && cgpa !== undefined && !Number.isNaN(Number(cgpa))
+      ? `Your current CGPA is ${Number(cgpa).toFixed(2)}.`
+      : "Your current CGPA is not available in the student record.";
+    if (!academicLevel && !academicRecord) {
+      return `${summary} Academic standing and the official promotion rule are not available yet, so eligibility cannot be confirmed from the stored data.`;
+    }
+    return `${summary} Your current academic level is recorded as ${academicLevel || "not available"}. The system does not currently include the official university promotion threshold, so eligibility for the next academic level cannot be confirmed from the stored record alone.`;
+  }
+
+  if (!getConfiguredAiProvider()) {
+    return "No AI provider is configured for general academic questions. I can answer questions based on your student record when academic data is available, but a live AI integration is not configured in this project.";
+  }
+
+  return "I can answer questions based on the current academic record, but no AI provider is configured for general academic responses in this project yet.";
+};
+
+app.post("/student/chatbot", async (req, res) => {
+  try {
+    if (!isDatabaseConnected()) {
+      return res.status(503).send({ success: false, message: "Database not connected" });
+    }
+
+    const email = normalizeIdentifier(req.body?.email || req.body?.studentEmail);
+    const question = String(req.body?.question || "").trim();
+
+    if (!email) {
+      return res.status(400).send({ success: false, message: "Student email is required." });
+    }
+
+    if (!question) {
+      return res.status(400).send({ success: false, message: "Please enter a question for the chatbot." });
+    }
+
+    const studentDocument = await UserModel.findOne({
+      email,
+      role: { $ne: "admin" },
+    });
+    const student = studentDocument && typeof studentDocument.toObject === "function" ? studentDocument.toObject() : studentDocument;
+
+    if (!student) {
+      return res.status(404).send({ success: false, message: "Student account not found." });
+    }
+
+    const academicRecordDocument = await AcademicRecordModel.findOne({ studentId: student._id });
+    const academicRecord = academicRecordDocument && typeof academicRecordDocument.toObject === "function"
+      ? academicRecordDocument.toObject()
+      : academicRecordDocument;
+    const answer = buildStudentAcademicAnswer(student, academicRecord, question);
+
+    return res.send({
+      success: true,
+      answer,
+      student: {
+        _id: student._id,
+        name: student.name,
+        email: student.email,
+        program: student.program,
+        academicYear: student.academicYear,
+        department: student.department,
+      },
+      academicRecord: academicRecord ? {
+        academicLevel: academicRecord.academicLevel,
+        verified: academicRecord.verified,
+        semesters: academicRecord.semesters || [],
+        studyPlan: academicRecord.studyPlan || [],
+      } : null,
+    });
+  } catch (error) {
+    console.error(`[student-chatbot] Failed to answer student question (${error.name || "Error"}).`);
+    return res.status(500).send({
+      success: false,
+      message: "Unable to process your question right now.",
+      error: error.message,
+    });
+  }
+});
+
+const normalizeSmtpCredential = (value) => String(value || "").replace(/\s+/g, "").trim();
+
 const getConfiguredValue = (...values) => {
   const placeholders = new Set([
     "your_email@gmail.com",
@@ -642,14 +1362,22 @@ const getConfiguredValue = (...values) => {
     "your_16_character_app_password",
   ]);
 
-  return values.find((value) => value && !placeholders.has(value)) || "";
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    if (placeholders.has(trimmed)) continue;
+    return trimmed;
+  }
+
+  return "";
 };
 
 const getSmtpConfig = () => {
   logEmailEnvStatus("smtp-config");
-  const user = getConfiguredValue(process.env.EMAIL_USER, process.env.SMTP_USER);
-  const pass = getConfiguredValue(process.env.EMAIL_PASS, process.env.SMTP_PASS);
-  const from = getConfiguredValue(process.env.EMAIL_FROM, process.env.SMTP_FROM, user);
+  const user = normalizeSmtpCredential(getConfiguredValue(process.env.EMAIL_USER, process.env.SMTP_USER));
+  const pass = normalizeSmtpCredential(getConfiguredValue(process.env.EMAIL_PASS, process.env.SMTP_PASS));
+  const from = normalizeSmtpCredential(getConfiguredValue(process.env.EMAIL_FROM, process.env.SMTP_FROM, user));
   const portValue = getConfiguredValue(process.env.EMAIL_PORT, process.env.SMTP_PORT, "587");
   const config = {
     host: getConfiguredValue(process.env.EMAIL_HOST, process.env.SMTP_HOST, "smtp.gmail.com"),
@@ -713,17 +1441,13 @@ const sendOtpEmail = async (email, code) => {
 /* Send an OTP to the user's email address. If the identifier is an email, 
    send directly to it. If it's a phone number, look up the associated email and send to that email. */
 const sendOtpToContact = async (contact, user, code) => {
-  if (isEmailIdentifier(contact)) {
-    await sendOtpEmail(contact, code);
-    return;
+  const targetEmail = isEmailIdentifier(contact) ? contact : user?.email;
+
+  if (!targetEmail) {
+    throw new Error("SMS delivery is not configured for phone number OTPs");
   }
 
-  if (user?.email) {
-    await sendOtpEmail(user.email, code);
-    return;
-  }
-
-  throw new Error("SMS delivery is not configured for phone number OTPs");
+  await sendOtpEmail(targetEmail, code);
 };
 const adminCookieOptions = () => ({
   httpOnly: true,
@@ -1917,4 +2641,6 @@ module.exports = {
   AdminPasswordResetModel,
   AcademicRecordModel,
   AcademicAuditModel,
+  AcademicSupportRequestModel,
+  NotificationModel,
 };
