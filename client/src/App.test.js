@@ -13,6 +13,8 @@ import AdminAuth from "./components/Admin/AdminAuth";
 import AdminForgotPassword from "./components/Admin/AdminForgotPassword";
 import AdminPage from "./components/Admin/AdminPage";
 import AdminAcademicRecords from "./components/Admin/AdminAcademicRecords";
+import Chatbot from "./components/Chatbot";
+import MyProgress from "./components/MyProgress";
 import StudentDashboard from "./components/StudentDashboard/StudentDashboard";
 import { ADMIN_ACCOUNTS } from "./components/Admin/adminAccounts";
 
@@ -125,6 +127,39 @@ describe("frontend pages", () => {
     await userEvent.click(screen.getByRole("button", { name: /log in/i }));
 
     expect(await screen.findByText(/admin sign-in endpoint is unavailable/i)).toBeInTheDocument();
+  });
+
+  it("renders the academic progress dashboard with real student metrics", async () => {
+    localStorage.setItem("studentUser", JSON.stringify({ email: "student@example.com", name: "Student User" }));
+    axios.get.mockResolvedValue({
+      data: {
+        progress: {
+          available: true,
+          academicLevel: "Level 3",
+          completedCourses: 16,
+          remainingCourses: 4,
+          completedCredits: 84,
+          remainingCredits: 18,
+          graduationProgress: 82,
+          milestones: [
+            { label: "Foundation / Entry", status: "completed" },
+            { label: "Diploma", status: "current" },
+          ],
+          studyPlan: [
+            { courseCode: "CS401", courseName: "System Design", creditHours: 3 },
+          ],
+        },
+      },
+    });
+
+    renderWithRouter(<MyProgress />);
+
+    expect(await screen.findByText(/My Progress/i)).toBeInTheDocument();
+    expect(screen.getByText(/Current Academic Level/i)).toBeInTheDocument();
+    expect(screen.getByText("Level 3")).toBeInTheDocument();
+    expect(screen.getByText(/Graduation Progress/i)).toBeInTheDocument();
+    expect(screen.getByText("82%")).toBeInTheDocument();
+    expect(screen.queryByText(/Learning activity/i)).not.toBeInTheDocument();
   });
 
   it("shows all Admin sections and supports sidebar collapse and navigation", async () => {
@@ -267,6 +302,78 @@ describe("frontend pages", () => {
     });
   });
 
+  it("sends a student academic question to the chatbot endpoint and displays the answer", async () => {
+    localStorage.setItem("studentUser", JSON.stringify({ _id: "user-123", name: "Test User", email: "test@test.com" }));
+    axios.post.mockResolvedValue({
+      data: {
+        success: true,
+        answer: "Your current CGPA is 3.84.",
+      },
+    });
+
+    renderWithRouter(<Chatbot />, ["/chatbot"]);
+
+    await userEvent.type(screen.getByLabelText("Your question"), "What is my current CGPA?");
+    await userEvent.click(screen.getByRole("button", { name: /submit question/i }));
+
+    await waitFor(() => {
+      expect(axios.post).toHaveBeenCalledWith(
+        "http://localhost:3002/student/chatbot",
+        {
+          email: "test@test.com",
+          question: "What is my current CGPA?",
+          pdfName: null,
+        },
+        expect.objectContaining({ withCredentials: true })
+      );
+    });
+
+    expect(await screen.findByText("Your current CGPA is 3.84.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /need academic support/i })).toBeInTheDocument();
+  });
+
+  it("routes student chatbot escalations to the Academic Support page with the transferred context", async () => {
+    localStorage.setItem("studentUser", JSON.stringify({ _id: "user-123", name: "Test User", email: "test@test.com" }));
+    axios.post.mockResolvedValue({
+      data: {
+        success: true,
+        answer: "Your current CGPA is 3.84.",
+      },
+    });
+
+    const SupportTransferReader = () => {
+      const location = useLocation();
+      return (
+        <>
+          <span data-testid="location">{location.pathname}</span>
+          <span data-testid="support-subject">{location.state?.supportTransfer?.subject || "missing"}</span>
+          <span data-testid="support-category">{location.state?.supportTransfer?.category || "missing"}</span>
+        </>
+      );
+    };
+
+    render(
+      <MemoryRouter initialEntries={["/chatbot"]}>
+        <Routes>
+          <Route path="/chatbot" element={<Chatbot />} />
+          <Route path="/student/dashboard" element={<SupportTransferReader />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await userEvent.type(screen.getByLabelText("Your question"), "What is my current CGPA?");
+    await userEvent.click(screen.getByRole("button", { name: /submit question/i }));
+    await screen.findByText("Your current CGPA is 3.84.");
+
+    await userEvent.click(screen.getByRole("button", { name: /need academic support/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/student/dashboard");
+    });
+    expect(screen.getByTestId("support-subject")).toHaveTextContent("What is my current CGPA?");
+    expect(screen.getByTestId("support-category")).toHaveTextContent("GPA / Academic Performance");
+  });
+
   it("redirects to /student/dashboard after successful student login", async () => {
     axios.post.mockResolvedValue({
       data: {
@@ -351,6 +458,8 @@ describe("frontend pages", () => {
 
     renderWithRouter(<StudentDashboard />, ["/student/dashboard"]);
 
+    expect(axios.get).toHaveBeenCalledWith("http://localhost:3002/getUsers");
+
     const profileHeading = await screen.findByRole("heading", {
       name: "Test Student",
       level: 2,
@@ -359,6 +468,61 @@ describe("frontend pages", () => {
     expect(
       await within(profile).findByText("Information Technology (IT)")
     ).toBeInTheDocument();
+  });
+
+  it("allows a student to edit their profile details from the dashboard", async () => {
+    localStorage.setItem(
+      "studentUser",
+      JSON.stringify({ _id: "student-1", email: "student@example.com", name: "Old Name" })
+    );
+    axios.get.mockResolvedValue({
+      data: [
+        {
+          _id: "student-1",
+          name: "Old Name",
+          email: "student@example.com",
+          role: "student",
+          department: "Information Technology (IT)",
+          phoneNumber: "",
+          program: "Software Engineering",
+        },
+      ],
+    });
+    axios.put.mockResolvedValue({
+      data: {
+        success: true,
+        user: {
+          _id: "student-1",
+          name: "Updated Name",
+          email: "student@example.com",
+          phoneNumber: "5551234567",
+          department: "Information Technology (IT)",
+          program: "Software Engineering",
+        },
+      },
+    });
+
+    renderWithRouter(<StudentDashboard />, ["/student/dashboard"]);
+
+    await screen.findByRole("heading", { name: "Old Name", level: 2 });
+    await userEvent.click(screen.getByRole("button", { name: /edit profile/i }));
+    await userEvent.clear(screen.getByLabelText("Full Name"));
+    await userEvent.type(screen.getByLabelText("Full Name"), "Updated Name");
+    await userEvent.type(screen.getByLabelText("Phone Number"), "5551234567");
+    await userEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(axios.put).toHaveBeenCalledWith(
+        "http://localhost:3002/student/profile",
+        expect.objectContaining({
+          email: "student@example.com",
+          name: "Updated Name",
+          phoneNumber: "5551234567",
+          }),
+          expect.objectContaining({ withCredentials: true })
+        );
+    });
+    expect(await screen.findByText("Profile updated successfully.")).toBeInTheDocument();
   });
 
   it("requires OTP verification before showing the password reset page", async () => {
@@ -463,7 +627,7 @@ describe("frontend pages", () => {
     await userEvent.click(screen.getByRole("button", { name: /reset password/i }));
 
     await waitFor(() => {
-      expect(axios.post).toHaveBeenCalledWith("http://127.0.0.1:3002/reset-password", {
+      expect(axios.post).toHaveBeenCalledWith("http://localhost:3002/reset-password", {
         email: "test@example.com",
         resetToken: "reset-token",
         password: "Newpass1234!",

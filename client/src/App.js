@@ -23,6 +23,7 @@ import AdminProfile from "./components/Admin/AdminProfile";
 import AdminChangePassword from "./components/Admin/AdminChangePassword";
 import AdminReports from "./components/Admin/AdminReports";
 import AdminRiskMonitoring from "./components/Admin/AdminRiskMonitoring";
+import AdminSupportRequests from "./components/Admin/AdminSupportRequests";
 import Notifications from "./components/Notifications";
 import MyProgress from "./components/MyProgress";
 import Chatbot from "./components/Chatbot";
@@ -57,6 +58,7 @@ function App() {
         <Route path="/admin/change-password" element={<AdminAccess><AdminPage><AdminChangePassword /></AdminPage></AdminAccess>} />
         <Route path="/admin/reports" element={<AdminAccess><AdminPage><AdminReports /></AdminPage></AdminAccess>} />
         <Route path="/admin/risk-monitoring" element={<AdminAccess><AdminPage><AdminRiskMonitoring /></AdminPage></AdminAccess>} />
+        <Route path="/admin/support-requests" element={<AdminAccess><AdminPage><AdminSupportRequests /></AdminPage></AdminAccess>} />
         <Route path="/student/dashboard" element={<StudentDashboard />} />
         <Route path="*" element={<Welcome />} />
       </Routes>

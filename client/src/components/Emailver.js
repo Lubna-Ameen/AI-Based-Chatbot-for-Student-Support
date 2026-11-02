@@ -28,7 +28,7 @@ const Emailver = () => {
 
   const onSubmit = async (data) => {
     try {
-      const response = await axios.post('http://127.0.0.1:3002/verify-otp', {
+      const response = await axios.post('http://localhost:3002/verify-otp', {
         email: data.email,
         otp: data.otp,
       });
@@ -73,8 +73,8 @@ const Emailver = () => {
 
     try {
       const endpoint = isPasswordReset
-        ? 'http://127.0.0.1:3002/send-reset-otp'
-        : 'http://127.0.0.1:3002/send-otp';
+        ? 'http://localhost:3002/send-reset-otp'
+        : 'http://localhost:3002/send-otp';
       const response = await axios.post(endpoint, { email });
 
       if (!response.data.success) {
@@ -85,6 +85,10 @@ const Emailver = () => {
         return;
       }
 
+      setError('root', {
+        type: 'success',
+        message: 'A new OTP has been sent successfully.',
+      });
     } catch (error) {
       setError('root', {
         type: 'server',

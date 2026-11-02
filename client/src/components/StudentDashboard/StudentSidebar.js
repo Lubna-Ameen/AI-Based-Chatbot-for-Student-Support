@@ -24,7 +24,7 @@ const navigation = [
   { label: "Recommendations", href: "#recommendations", icon: <FaLightbulb /> },
   { label: "Notifications", to: "/notifications", icon: <FaBell /> },
   { label: "AI Chatbot", to: "/chatbot", icon: <FaRobot /> },
-  { label: "Academic Support", to: "/contact", icon: <FaBookOpen /> },
+  { label: "Academic Support", to: "/student/dashboard#academic-support", icon: <FaBookOpen /> },
 ];
 
 const StudentSidebar = ({ isOpen, onClose, onLogout }) => {
@@ -49,7 +49,11 @@ const StudentSidebar = ({ isOpen, onClose, onLogout }) => {
         <nav className="student-sidebar-navigation" aria-label="Student portal navigation">
           {navigation.map((item) => {
             const href = item.to || item.href;
-            const isActive = href === currentPath || (href === "/student/dashboard" && currentPath === "/student/dashboard") || (href === "#dashboard" && currentPath === "/student/dashboard");
+            const isActive =
+              href === currentPath ||
+              (href === "/student/dashboard" && currentPath === "/student/dashboard") ||
+              (href === "#dashboard" && currentPath === "/student/dashboard") ||
+              (href === "/student/dashboard#academic-support" && (currentPath === "/student/dashboard#academic-support" || currentPath === "/student/dashboard"));
             const className = isActive ? "student-sidebar-link is-active" : "student-sidebar-link";
 
             return item.to ? (

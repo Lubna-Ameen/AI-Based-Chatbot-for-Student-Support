@@ -8,6 +8,7 @@ import {
   FaChevronRight,
   FaClipboardList,
   FaFileAlt,
+  FaHeadset,
   FaHome,
   FaSignOutAlt,
   FaTimes,
@@ -26,6 +27,7 @@ const ADMIN_SECTIONS = [
   { label: "Profile", path: "/admin/profile", icon: FaUserCircle },
   { label: "Reports", path: "/admin/reports", icon: FaFileAlt },
   { label: "Risk Monitoring", path: "/admin/risk-monitoring", icon: FaChartLine },
+  { label: "Support Requests", path: "/admin/support-requests", icon: FaHeadset },
   { label: "Change Password", path: "/admin/change-password", icon: FaClipboardList },
 ];
 
